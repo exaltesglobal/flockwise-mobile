@@ -29,7 +29,7 @@ export default function RootLayout() {
 
 function RootNavigator({ fontsLoaded }: { fontsLoaded: boolean }) {
   const scheme = useColorScheme();
-  const { status } = useSession();
+  const { status, session } = useSession();
   const ready = fontsLoaded && status !== 'loading';
   const c = Colors[scheme === 'dark' ? 'dark' : 'light'];
   const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
@@ -56,16 +56,13 @@ function RootNavigator({ fontsLoaded }: { fontsLoaded: boolean }) {
           contentStyle: { backgroundColor: c.background },
         }}>
         <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Protected guard={status === 'signedIn'}>
+        <Stack.Protected guard={status === 'signedIn' && !session?.mustChangePassword}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="event/[id]" options={{ title: '', headerBackTitle: ' ' }} />
+          <Stack.Screen name="assignment/[id]" options={{ title: '', headerBackTitle: ' ' }} />
           <Stack.Screen name="settings/server" options={{ title: 'Server', presentation: 'modal' }} />
-          <Stack.Screen name="member/checkin" />
-          <Stack.Screen name="member/serving" />
-          <Stack.Screen name="member/prayer" />
-          <Stack.Screen name="member/directory" />
-          <Stack.Screen name="member/pledges" />
-          <Stack.Screen name="member/statement" />
+        </Stack.Protected>
+        <Stack.Protected guard={status === 'signedIn'}>
+          <Stack.Screen name="settings/password" options={{ title: '', headerBackTitle: ' ' }} />
         </Stack.Protected>
         <Stack.Protected guard={status === 'signedOut'}>
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />

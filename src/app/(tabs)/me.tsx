@@ -1,13 +1,13 @@
 import Constants from 'expo-constants';
-import { Link } from 'expo-router';
-import { Pressable, StyleSheet, Switch, View } from 'react-native';
+import { StyleSheet, Switch, View } from 'react-native';
 
-import { Church, Me } from '@/api/endpoints';
+import { Me } from '@/api/endpoints';
 import type { Consent, LanguageCode } from '@/api/types';
 import { ListLink } from '@/components/list-link';
 import { Button, Card, Chip, Screen, SectionHeader, T } from '@/components/ui';
 import { languages, useT } from '@/i18n';
 import { canOverrideServer, getApiUrl, isUsingMocks } from '@/lib/config';
+import { useMyServing } from '@/lib/serving';
 import { useSession } from '@/lib/session';
 import { useApi } from '@/lib/use-api';
 import { Fonts, Space, usePalette } from '@/theme';
@@ -17,10 +17,10 @@ export default function MeScreen() {
   const { t } = useT();
   const { session, signOut, updateMember } = useSession();
   const m = session!.member;
+  const serving = useMyServing();
   const prefs = useApi(Me.preferences);
-  const campuses = useApi(Church.campuses);
 
-  async function setLanguage(language: LanguageCode) {
+  function setLanguage(language: LanguageCode) {
     updateMember({ ...m, language });
     Me.update({ language }).catch(() => {});
   }
@@ -30,12 +30,13 @@ export default function MeScreen() {
     prefs.setData(await Me.updatePreferences({ consent: { [key]: value } }));
   }
 
-  const consentRows: { key: keyof Consent; label: string }[] = [
+  // Rota reminders go out by these channels.
+  const channels: { key: keyof Consent; label: string }[] = [
     { key: 'email', label: t('consentEmail') },
     { key: 'whatsapp', label: t('consentWhatsapp') },
     { key: 'sms', label: t('consentSms') },
-    { key: 'directory', label: t('consentDirectory') },
   ];
+  const team = serving.data?.teams[0];
 
   return (
     <Screen refreshing={prefs.refreshing} onRefresh={prefs.refresh}>
@@ -54,18 +55,19 @@ export default function MeScreen() {
         </View>
       </View>
 
-      <SectionHeader title={t('quickLinks')} />
-      <ListLink href="/member/checkin" icon="qr-code-outline" title={t('myQr')} subtitle={t('myQrBody')} />
-      <ListLink href="/member/serving" icon="hand-left-outline" title={t('tabServing')} subtitle={t('servingBody')} />
-      <ListLink href="/member/prayer" icon="flame-outline" title={t('prayerTitle')} subtitle={t('prayerBody')} />
-      <ListLink href="/member/directory" icon="people-circle-outline" title={t('tabDirectory')} subtitle={t('directoryBody')} />
+      <SectionHeader title={t('yourTeam')} />
+      <Card>
+        <T variant="subheading">{session!.team.name}</T>
+        {team && team.positions.length > 0 ? <T variant="caption">{team.positions.join(', ')}</T> : null}
+      </Card>
+      <Button title={t('switchTeam')} variant="secondary" onPress={signOut} />
 
       <SectionHeader title={t('profile')} />
       <Card>
         {m.email ? <T>{m.email}</T> : null}
         {m.phone ? <T>{m.phone}</T> : null}
-        {m.householdName ? <T variant="muted">{`${t('household')}: ${m.householdName}`}</T> : null}
       </Card>
+      <ListLink href="/settings/password" icon="key-outline" title={t('changePassword')} />
 
       <SectionHeader title={t('language')} />
       <View style={styles.wrap}>
@@ -74,33 +76,12 @@ export default function MeScreen() {
         ))}
       </View>
 
-      {campuses.data && campuses.data.length > 1 && (
-        <>
-          <SectionHeader title={t('campus')} />
-          <View style={styles.wrap}>
-            {campuses.data.map((cp) => (
-              <Chip
-                key={cp.id}
-                label={cp.name}
-                selected={prefs.data?.campusId === cp.id}
-                onPress={async () => prefs.setData(await Me.updatePreferences({ campusId: cp.id }))}
-              />
-            ))}
-          </View>
-        </>
-      )}
-
       <SectionHeader title={t('privacy')} />
       <Card>
-        {consentRows.map((row) => (
+        {channels.map((row) => (
           <View key={row.key} style={styles.switchRow}>
             <T style={{ flex: 1 }}>{row.label}</T>
-            <Switch
-              value={!!prefs.data?.consent[row.key]}
-              disabled={!prefs.data}
-              onValueChange={(v) => setConsent(row.key, v)}
-              trackColor={{ true: c.primary }}
-            />
+            <Switch value={!!prefs.data?.consent[row.key]} disabled={!prefs.data} onValueChange={(v) => setConsent(row.key, v)} trackColor={{ true: c.primary }} />
           </View>
         ))}
       </Card>
@@ -108,18 +89,11 @@ export default function MeScreen() {
       {canOverrideServer() && (
         <>
           <SectionHeader title={t('server')} />
-          <Link href="/settings/server" asChild>
-            <Pressable>
-              <Card>
-                <T variant="bodyBold">{isUsingMocks() ? t('usingDemoData') : getApiUrl()}</T>
-                <T variant="caption">{t('serverBody')}</T>
-              </Card>
-            </Pressable>
-          </Link>
+          <ListLink href="/settings/server" icon="server-outline" title={isUsingMocks() ? t('usingDemoData') : getApiUrl()} subtitle={t('serverBody')} />
         </>
       )}
 
-      <Button title={t('signOut')} variant="secondary" onPress={signOut} style={{ marginTop: Space.lg }} />
+      <Button title={t('signOut')} variant="ghost" onPress={signOut} style={{ marginTop: Space.lg }} />
       <T variant="caption" style={{ textAlign: 'center' }}>
         {t('version', { version: Constants.expoConfig?.version ?? '' })}
       </T>

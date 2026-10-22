@@ -2,14 +2,14 @@ import { getApiUrl, isUsingMocks } from '@/lib/config';
 
 import { mockRequest } from './mock';
 import { ApiError } from './errors';
-import type { ApiErrorBody, Session } from './types';
+import type { ApiErrorBody, TeamSession } from './types';
 
 export { ApiError };
 
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 type AuthHooks = {
-  getSession: () => Session | null;
+  getSession: () => TeamSession | null;
   refresh: () => Promise<boolean>;
   onUnauthorized: () => void;
 };

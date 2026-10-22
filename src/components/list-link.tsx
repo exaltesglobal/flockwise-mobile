@@ -9,7 +9,7 @@ import { T } from './ui';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
-/** A tappable row with an icon, used for the quick links on Me and Give. */
+/** A tappable row with an icon, used on Me. */
 export function ListLink({ href, icon, title, subtitle }: { href: Href; icon: IconName; title: string; subtitle?: string }) {
   const c = usePalette();
   return (

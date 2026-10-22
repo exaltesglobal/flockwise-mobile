@@ -8,10 +8,8 @@ import { Fonts, usePalette } from '@/theme';
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
 const TABS: { name: string; label: StringKey; icon: IconName; iconActive: IconName }[] = [
-  { name: 'home', label: 'tabHome', icon: 'home-outline', iconActive: 'home' },
-  { name: 'events', label: 'tabEvents', icon: 'calendar-outline', iconActive: 'calendar' },
-  { name: 'give', label: 'tabGive', icon: 'heart-outline', iconActive: 'heart' },
-  { name: 'groups', label: 'tabGroups', icon: 'people-outline', iconActive: 'people' },
+  { name: 'schedule', label: 'tabSchedule', icon: 'calendar-outline', iconActive: 'calendar' },
+  { name: 'away', label: 'tabAway', icon: 'airplane-outline', iconActive: 'airplane' },
   { name: 'me', label: 'tabMe', icon: 'person-circle-outline', iconActive: 'person-circle' },
 ];
 

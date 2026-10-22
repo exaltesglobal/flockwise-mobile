@@ -2,13 +2,12 @@
 // matching security codes on the child's and the parent's labels.
 import { ApiError } from '../errors.js';
 import type { Ctx, Router } from '../engine.js';
-import type { Checkin, CheckinCandidate, CheckinFamily, CheckinLabel, CheckinMethod, CheckinResult, CheckinSummary, Collections } from '../types.js';
+import { CODE_ALPHABET, isSecurityCode, labelsFor, QR_PREFIX } from '../offline-checkin.js';
+import type { Checkin, CheckinCandidate, CheckinFamily, CheckinMethod, CheckinResult, CheckinSummary, Collections, OfflinePack, OfflineSyncResult } from '../types.js';
 import { age, checkinsFor, DAY, eventView, find, fullName, isChild, memberEvent, pick, requireFields, settings, touchAttendance } from '../util.js';
 import { searchPeople } from './people.js';
 
-const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-
-function roomFor(ctx: Ctx, p: Collections['people']) {
+export function roomFor(ctx: Ctx, p: Collections['people']) {
   const a = age(p.birthDate, ctx.now);
   if (a === null || !isChild(ctx, p)) return null;
   return ctx.db
@@ -45,10 +44,34 @@ function families(ctx: Ctx, eventId: string, people: Collections['people'][]): C
   }));
 }
 
+/** Who is scheduled to serve at an event (accepted or still pending). */
+function servingAt(ctx: Ctx, eventId: string) {
+  const teams = new Map(ctx.db.all('teams').map((t) => [t.id, t]));
+  return ctx.db
+    .all('assignments')
+    .filter((a) => a.eventId === eventId && a.status !== 'declined')
+    .map((a) => {
+      const t = teams.get(a.teamId);
+      return { personId: a.personId, teamName: t?.name ?? 'Team', positionName: t?.positions.find((p) => p.id === a.positionId)?.name ?? '' };
+    });
+}
+
+export const headcountsFor = (ctx: Ctx, eventId: string) => ctx.db.all('headcounts').filter((h) => h.eventId === eventId).sort((x, y) => x.at.localeCompare(y.at));
+
 function summary(ctx: Ctx, ev: Collections['events']): CheckinSummary {
   const list = checkinsFor(ctx, ev.id).sort((x, y) => y.at.localeCompare(x.at));
   const rooms = ctx.db.all('rooms').sort((x, y) => x.minAge - y.minAge);
+  const serving = servingAt(ctx, ev.id);
+  const inIds = new Set(list.map((c) => c.personId));
+  const heads = headcountsFor(ctx, ev.id);
   return {
+    headcounts: heads,
+    headcountTotal: heads.reduce((s, h) => s + h.count, 0),
+    volunteers: {
+      scheduled: new Set(serving.map((s) => s.personId)).size,
+      checkedIn: new Set(serving.filter((s) => inIds.has(s.personId)).map((s) => s.personId)).size,
+      missing: serving.filter((s) => !inIds.has(s.personId)).map((s) => ({ ...s, name: ctx.db.get('people', s.personId) ? fullName(ctx.db.get('people', s.personId)!) : 'Unknown' })),
+    },
     event: eventView(ctx, ev),
     total: list.length,
     children: list.filter((c) => c.isChild).length,
@@ -58,19 +81,24 @@ function summary(ctx: Ctx, ev: Collections['events']): CheckinSummary {
   };
 }
 
+/** What a desk without internet did, replayed: its time, its security code and an id so a retry is harmless. */
+type Offline = { at: string; code: string | null; clientId: string };
+
 /** Checks people in to an event. Children in one batch share a security code with their guardian label. */
-export function checkIn(ctx: Ctx, ev: Collections['events'], personIds: string[], method: CheckinMethod): CheckinResult {
-  if (!ev.checkinEnabled) throw new ApiError(422, 'checkin_closed', 'Check-in is turned off for this event.');
+export function checkIn(ctx: Ctx, ev: Collections['events'], personIds: string[], method: CheckinMethod, offline?: Offline): CheckinResult {
+  if (!ev.checkinEnabled && !offline) throw new ApiError(422, 'checkin_closed', 'Check-in is turned off for this event.');
   const people = [...new Set(personIds)].map((id) => find(ctx, 'people', id, 'Person'));
   if (!people.length) throw new ApiError(422, 'invalid', 'Choose who is checking in.');
   const existing = new Set(checkinsFor(ctx, ev.id).map((c) => c.personId));
   const kids = people.filter((p) => isChild(ctx, p));
-  for (const k of kids) {
+  // A room filled up while the desk was offline: the children are already in the room, so record them.
+  for (const k of offline ? [] : kids) {
     const room = roomFor(ctx, k);
     if (room?.capacity && checkinsFor(ctx, ev.id).filter((c) => c.roomId === room.id && !c.checkedOutAt).length >= room.capacity)
       throw new ApiError(409, 'room_full', `${room.name} is full. Please speak to the kids' team.`);
   }
-  const code = kids.length ? ctx.env.random(4, CODE_ALPHABET) : null;
+  const code = kids.length ? (offline && isSecurityCode(offline.code) ? offline.code : ctx.env.random(4, CODE_ALPHABET)) : null;
+  const serving = servingAt(ctx, ev.id);
   const out: Checkin[] = [];
   for (const p of people) {
     if (existing.has(p.id)) continue;
@@ -82,7 +110,7 @@ export function checkIn(ctx: Ctx, ev: Collections['events'], personIds: string[]
       personId: p.id,
       personName: fullName(p),
       householdName: p.householdName,
-      at: ctx.now.toISOString(),
+      at: offline?.at ?? ctx.now.toISOString(),
       method,
       isChild: child,
       roomId: room?.id ?? null,
@@ -90,22 +118,20 @@ export function checkIn(ctx: Ctx, ev: Collections['events'], personIds: string[]
       securityCode: child ? code : null,
       allergies: child ? p.allergies : null,
       checkedOutAt: null,
+      volunteer: (() => {
+        const mine = serving.filter((x) => x.personId === p.id);
+        return mine.length ? { teamName: [...new Set(mine.map((x) => x.teamName))].join(', '), positionName: mine.map((x) => x.positionName).filter(Boolean).join(', ') } : null;
+      })(),
+      ...(offline ? { clientId: offline.clientId } : {}),
     });
     touchAttendance(ctx, p.id);
     out.push(c);
   }
-  const date = ev.startsAt.slice(0, 10);
-  const labels: CheckinLabel[] = out
-    .filter((c) => c.isChild)
-    .map((c) => ({ kind: 'child' as const, name: c.personName, room: c.roomName, securityCode: code!, allergies: c.allergies, event: ev.title, date }));
-  if (labels.length) {
-    const guardian = people.find((p) => !isChild(ctx, p));
-    labels.push({ kind: 'guardian', name: guardian ? fullName(guardian) : `${labels.length} ${labels.length === 1 ? 'child' : 'children'}`, room: null, securityCode: code!, allergies: null, event: ev.title, date });
-  }
+  const guardian = people.find((p) => !isChild(ctx, p));
+  const labels = labelsFor(ev, out, guardian ? fullName(guardian) : null, code);
   return { checkins: out, securityCode: out.some((c) => c.isChild) ? code : null, labels };
 }
 
-const QR_PREFIX = 'FW1:';
 
 export function registerCheckin(r: Router) {
   // ----- member -----
@@ -152,6 +178,72 @@ export function registerCheckin(r: Router) {
     return undefined;
   });
   r.get('/admin/checkin/:eventId', { perm: 'checkin' }, (ctx) => summary(ctx, find(ctx, 'events', ctx.params[0], 'Event')));
+  r.post('/admin/checkin/:eventId/headcounts', { perm: 'checkin' }, (ctx) => {
+    const ev = find(ctx, 'events', ctx.params[0], 'Event');
+    requireFields(ctx.body, ['area', 'count']);
+    const count = Math.round(Number(ctx.body.count));
+    if (!Number.isFinite(count) || count < 0) throw new ApiError(422, 'invalid', 'Enter how many people.', { count: 'Enter a number' });
+    const area = String(ctx.body.area).trim().slice(0, 60);
+    // One count per area: a recount replaces the earlier one.
+    const prev = headcountsFor(ctx, ev.id).find((h) => h.area.toLowerCase() === area.toLowerCase());
+    ctx.db.put('headcounts', { id: prev?.id ?? ctx.id('hc'), eventId: ev.id, area, count, recordedBy: ctx.staff?.name ?? '', at: ctx.now.toISOString() });
+    const total = headcountsFor(ctx, ev.id).reduce((s, h) => s + h.count, 0);
+    ctx.db.put('events', { ...ev, attendance: total });
+    return summary(ctx, ctx.db.get('events', ev.id)!);
+  });
+  r.del('/admin/checkin/headcounts/:id', { perm: 'checkin' }, (ctx) => {
+    const h = find(ctx, 'headcounts', ctx.params[0], 'Headcount');
+    ctx.db.del('headcounts', h.id);
+    const ev = ctx.db.get('events', h.eventId);
+    if (ev) {
+      const rest = headcountsFor(ctx, ev.id);
+      ctx.db.put('events', { ...ev, attendance: rest.length ? rest.reduce((s, x) => s + x.count, 0) : ev.attendance });
+    }
+    return undefined;
+  });
+  // Everything a desk needs to keep checking people in when the internet drops.
+  r.get('/admin/checkin/:eventId/offline', { perm: 'checkin' }, (ctx): OfflinePack => {
+    const ev = find(ctx, 'events', ctx.params[0], 'Event');
+    return {
+      event: { id: ev.id, title: ev.title, startsAt: ev.startsAt },
+      generatedAt: ctx.now.toISOString(),
+      people: ctx.db
+        .all('people')
+        .filter((p) => p.status !== 'inactive')
+        .map((p) => {
+          const room = roomFor(ctx, p);
+          const digits = (p.phone ?? '').replace(/\D/g, '');
+          return { id: p.id, name: fullName(p), household: p.householdName, age: age(p.birthDate, ctx.now), isChild: isChild(ctx, p), roomId: room?.id ?? null, roomName: room?.name ?? null, allergies: p.allergies, code: p.checkinCode, phone4: digits.length >= 4 ? digits.slice(-4) : null };
+        }),
+      checkedIn: checkinsFor(ctx, ev.id).map((c) => c.personId),
+      serving: servingAt(ctx, ev.id),
+    };
+  });
+  // Replays check-ins made offline. Safe to send twice: items already synced come back as they are.
+  r.post('/admin/checkin/:eventId/sync', { perm: 'checkin' }, (ctx) => {
+    const ev = find(ctx, 'events', ctx.params[0], 'Event');
+    const items = Array.isArray(ctx.body.items) ? (ctx.body.items as Record<string, unknown>[]).slice(0, 500) : [];
+    const results: OfflineSyncResult[] = items.map((it) => {
+      const clientId = String(it.clientId ?? '').slice(0, 60);
+      if (!clientId) return { clientId, ok: false, checkins: [], skipped: [], error: 'Missing id' };
+      const done = checkinsFor(ctx, ev.id).filter((c) => c.clientId === clientId);
+      if (done.length) return { clientId, ok: true, checkins: done, skipped: [] };
+      const ids = (Array.isArray(it.personIds) ? it.personIds : []).map(String).filter((id) => ctx.db.get('people', id));
+      const already = checkinsFor(ctx, ev.id).filter((c) => ids.includes(c.personId));
+      const t = Date.parse(String(it.at));
+      // Trust the desk's clock within reason: not in the future, not before the day before the event.
+      const at = Number.isFinite(t) && t <= ctx.now.getTime() && t >= new Date(ev.startsAt).getTime() - DAY ? new Date(t).toISOString() : ctx.now.toISOString();
+      const method: CheckinMethod = it.method === 'kiosk' || it.method === 'qr' ? it.method : 'staff';
+      try {
+        const r = ids.length > already.length ? checkIn(ctx, ev, ids, method, { at, code: isSecurityCode(it.code) ? it.code : null, clientId }) : { checkins: [] };
+        return { clientId, ok: true, checkins: r.checkins, skipped: already.map((c) => ({ personId: c.personId, name: c.personName, securityCode: c.securityCode })) };
+      } catch (e) {
+        return { clientId, ok: false, checkins: [], skipped: [], error: e instanceof Error ? e.message : 'Could not sync' };
+      }
+    });
+    if (results.some((x) => x.checkins.length)) ctx.audit('synced', 'checkin', ev.id, `Synced ${results.reduce((n, x) => n + x.checkins.length, 0)} check-ins made offline`);
+    return { results };
+  });
   r.get('/admin/checkin/:eventId/search', { perm: 'checkin' }, (ctx) => {
     const ev = find(ctx, 'events', ctx.params[0], 'Event');
     const q = String(ctx.query.q ?? '').trim();
@@ -191,9 +283,6 @@ export function registerCheckin(r: Router) {
     const code = String(ctx.body.securityCode ?? '').toUpperCase();
     const kids = checkinsFor(ctx, ev.id).filter((c) => c.securityCode === code);
     if (!kids.length) throw new ApiError(404, 'not_found', 'No children checked in with that code.');
-    const date = ev.startsAt.slice(0, 10);
-    const labels: CheckinLabel[] = kids.map((c) => ({ kind: 'child', name: c.personName, room: c.roomName, securityCode: code, allergies: c.allergies, event: ev.title, date }));
-    labels.push({ kind: 'guardian', name: kids[0].householdName ?? 'Guardian', room: null, securityCode: code, allergies: null, event: ev.title, date });
-    return { checkins: kids, securityCode: code, labels };
+    return { checkins: kids, securityCode: code, labels: labelsFor(ev, kids, kids[0].householdName ?? 'Guardian', code) };
   });
 }
