@@ -176,7 +176,7 @@ export async function mockRequest<T>(method: string, path: string, body?: any): 
 
   switch (key) {
     case 'POST /auth/otp/request':
-      if (!/^\S+@\S+\.\S+$/.test(body?.email ?? '')) throw new ApiError(422, 'invalid_email', 'Enter a valid email address.', { email: 'Invalid' });
+      if (!/^\S+@\S+\.\S+$/.test(body?.email ?? '')) throw new ApiError(422, 'email_required', 'Enter a valid email address.', { email: 'Invalid' });
       member = { ...member, email: body.email };
       return { requestId: 'otp_demo', channel: 'email', expiresInSeconds: 600 } as T;
     case 'POST /auth/otp/verify':
