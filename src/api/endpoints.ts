@@ -1,7 +1,23 @@
 // One function per backend endpoint (docs/API.md). Screens call these, never fetch() directly.
 // The team app only uses the signed-in person's own endpoints, so nobody sees anyone else's data.
 import { api } from './client';
-import type { Assignment, Blockout, ChurchFound, ChurchPublic, Consent, Member, MemberPreferences, MyServing, TeamRef, TeamSession } from './types';
+import type {
+  Assignment,
+  Blockout,
+  ChurchFound,
+  ChurchPublic,
+  Consent,
+  HubChannelDetail,
+  HubChannelView,
+  HubPost,
+  HubPostKind,
+  Member,
+  MemberPreferences,
+  MyServing,
+  MyTask,
+  TeamRef,
+  TeamSession,
+} from './types';
 
 const q = (params: Record<string, string | undefined>) => {
   const s = new URLSearchParams(Object.entries(params).filter((e): e is [string, string] => !!e[1])).toString();
@@ -38,4 +54,16 @@ export const Serving = {
   respond: (id: string, status: 'accepted' | 'declined', note?: string) => api.post<Assignment>(`/me/serving/${id}/respond`, { status, note }),
   addBlockout: (input: { from: string; to: string; reason?: string }) => api.post<Blockout>('/me/blockouts', input),
   deleteBlockout: (id: string) => api.del<void>(`/me/blockouts/${id}`),
+};
+
+// Team hub: notices, chat threads and tasks. Every route checks the person is on that team.
+export const Hub = {
+  notices: (teamId: string) => api.get<HubPost[]>(`/team/${teamId}/notices`),
+  threads: (teamId: string) => api.get<HubChannelView[]>(`/team/${teamId}/threads`),
+  startThread: (teamId: string, name: string, memberKeys: string[]) => api.post<HubChannelView>(`/team/${teamId}/threads`, { name, memberKeys }),
+  messages: (teamId: string, threadId: string, cursor?: string) => api.get<HubChannelDetail>(`/team/${teamId}/threads/${threadId}/messages${q({ cursor })}`),
+  post: (teamId: string, threadId: string, input: { kind?: HubPostKind; text: string; task?: { assigneeKey: string; dueAt: string | null } }) =>
+    api.post<HubPost>(`/team/${teamId}/threads/${threadId}/messages`, input),
+  tasks: () => api.get<MyTask[]>('/me/tasks'),
+  setTaskDone: (id: string, done: boolean) => api.patch<HubPost>(`/me/tasks/${id}`, { done }),
 };

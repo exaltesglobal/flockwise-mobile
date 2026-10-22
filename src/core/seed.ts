@@ -149,6 +149,17 @@ export function seedDemo(db: Db, env: Env) {
   db.put('staff', { id: 'st_1', personId: 'p_samuel', name: 'Pastor Samuel Raj', email: 'pastor@gracechurch.in', phone: '+91 98480 12345', role: 'owner', status: 'active', lastActiveAt: iso(now) });
   db.put('staff', { id: 'st_2', personId: null, name: 'Leena George', email: 'office@gracechurch.in', phone: '+91 98480 22222', role: 'admin', status: 'active', lastActiveAt: at(-1, 17) });
   db.put('staff', { id: 'st_3', personId: null, name: 'Vinod Mathew', email: 'accounts@gracechurch.in', phone: null, role: 'finance', status: 'active', lastActiveAt: at(-4, 11) });
+  // Team hub: the office channel and the worship team's channel, with a few posts.
+  db.put('hubChannels', { id: 'hub_staff', name: 'Office team', kind: 'staff', teamId: null, memberKeys: [], createdBy: 'system', createdAt: at(-20, 9), archived: false });
+  db.put('hubChannels', { id: 'hub_team_tm_worship', name: 'Worship', kind: 'team', teamId: 'tm_worship', memberKeys: [], createdBy: 'system', createdAt: at(-20, 9), archived: false });
+  db.put('hubPosts', { id: 'hp_1', channelId: 'hub_staff', kind: 'notice', text: 'Staff prayer and planning this Thursday at 10 am in the office. We will set the December calendar, so bring your ministry dates.', authorKey: 'p:p_samuel', authorName: 'Pastor Samuel Raj', at: at(-2, 9), pinned: true, mentions: [], task: null });
+  db.put('hubPosts', { id: 'hp_2', channelId: 'hub_staff', kind: 'message', text: 'The projector in the main hall flickers after 20 minutes. Has anyone called the vendor?', authorKey: 's:st_2', authorName: 'Leena George', at: at(-1, 11), pinned: false, mentions: [], task: null });
+  db.put('hubPosts', { id: 'hp_3', channelId: 'hub_staff', kind: 'message', text: '@Leena I spoke to them; a technician comes Friday morning.', authorKey: 's:st_5', authorName: 'David Samuel', at: at(-1, 12), pinned: false, mentions: ['s:st_2'], task: null });
+  db.put('hubPosts', { id: 'hp_4', channelId: 'hub_staff', kind: 'task', text: 'Print 80 copies of the Sunday bulletin and leave them at the welcome desk.', authorKey: 's:st_2', authorName: 'Leena George', at: at(-1, 15), pinned: false, mentions: [], task: { assigneeKey: 's:st_4', assigneeName: 'Mercy Daniel', dueAt: at(2, 9), done: false, doneAt: null, doneByName: null } });
+  db.put('hubPosts', { id: 'hp_5', channelId: 'hub_team_tm_worship', kind: 'notice', text: 'Rehearsal moved to Saturday 5 pm this week. Set list is on the service plan; please learn Amazing Grace in G.', authorKey: 's:st_5', authorName: 'David Samuel', at: at(-1, 18), pinned: true, mentions: [], task: null });
+  db.put('hubPosts', { id: 'hp_6', channelId: 'hub_team_tm_worship', kind: 'message', text: 'Can someone bring a spare DI box on Saturday?', authorKey: 'p:p_priya', authorName: 'Priya Thomas', at: at(0, 8), pinned: false, mentions: [], task: null });
+  // A role the church made itself: zone leaders see and care for their own zone only.
+  db.put('roles', { id: 'role_zone', name: 'Zone leader', description: 'Visits families, follows up absentees and logs prayer needs in their own zone.', permissions: ['people.view', 'care', 'groups'], scope: 'zone', createdAt: at(-30, 10) });
   db.put('staff', { id: 'st_4', personId: null, name: 'Mercy Daniel', email: 'mercy@gracechurch.in', phone: null, role: 'pastor', status: 'active', lastActiveAt: at(-2, 10) });
   db.put('staff', { id: 'st_5', personId: null, name: 'David Samuel', email: 'worship@gracechurch.in', phone: null, role: 'coordinator', status: 'active', lastActiveAt: at(-1, 20) });
   db.put('staff', { id: 'st_6', personId: null, name: 'Rahul Varghese', email: 'rahul@example.com', phone: null, role: 'leader', status: 'invited', lastActiveAt: null });
@@ -557,7 +568,9 @@ export function seedDemo(db: Db, env: Env) {
   db.put('sermons', sermon('sm_3', 'Faith that works', 'Mercy Daniel', 21, 'James', 'James 2:14-26', 'What does living faith look like on a Monday morning?'));
   db.put('sermons', sermon('sm_4', 'The God who sees', 'Pastor Samuel Raj', 28, 'Stand-alone', 'Genesis 16', 'Hagar meets the God who sees her in the wilderness.'));
 
-  db.put('settings', { ...db.get('settings', 'church')!, publicPage: { enabled: true, tagline: 'A home for everyone in Hyderabad', about: 'Grace Community Church has been serving Hyderabad since 1998. We are a family of families from every part of India, meeting in English and Telugu.', serviceTimes: 'Sundays 9:00 am (English) and 11:30 am (Telugu), Kondapur\nSundays 10:00 am, Secunderabad Hall', heroImageUrl: '', showEvents: true, showGroups: true, showSermons: true, showGiving: true } });
+  // The demo church's brand kit: a simple mark so the logo shows beside the name everywhere.
+  const demoLogo = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#7a2e2e"/><path d="M32 10v44M18 24h28" stroke="#fff" stroke-width="7" stroke-linecap="round"/><path d="M12 50c8-10 32-10 40 0" fill="none" stroke="#e9b949" stroke-width="4" stroke-linecap="round"/></svg>');
+  db.put('settings', { ...db.get('settings', 'church')!, logoUrl: demoLogo, brand: { primary: '#7a2e2e', accent: '#e9b949', font: 'classic', logoDarkUrl: null, tagline: 'A home for everyone in Hyderabad' }, publicPage: { enabled: true, tagline: 'A home for everyone in Hyderabad', about: 'Grace Community Church has been serving Hyderabad since 1998. We are a family of families from every part of India, meeting in English and Telugu.', serviceTimes: 'Sundays 9:00 am (English) and 11:30 am (Telugu), Kondapur\nSundays 10:00 am, Secunderabad Hall', heroImageUrl: '', showEvents: true, showGroups: true, showSermons: true, showGiving: true } });
 
   const cash = db.all('donations').filter((d) => d.method === 'cash' || d.method === 'cheque').slice(0, 12);
   if (cash.length) {
@@ -582,6 +595,8 @@ export function seedDemo(db: Db, env: Env) {
   ];
   hymns.forEach(([title, author, key, bpm, lyrics, arrangement], i) =>
     db.put('songs', { id: `sg_h${i + 1}`, title, author, defaultKey: key, bpm, ccli: '', tags: ['Hymn'], lyrics, arrangement }));
+  // A simple folk harmonisation of Amazing Grace (public domain) so the musicians' view has chords to show.
+  db.put('songs', { ...db.get('songs', 'sg_h1')!, chordChart: '{title: Amazing Grace}\n{key: G}\n\n[Verse 1]\nA[G]mazing grace! How [G7]sweet the [C]sound\nThat [G]saved a wretch like [D]me!\nI [G]once was lost, but [G7]now am [C]found;\nWas [G]blind, but [D]now I [G]see.\n\n[Verse 2]\n’Twas [G]grace that taught my [G7]heart to [C]fear,\nAnd [G]grace my fears re[D]lieved;\nHow [G]precious did that [G7]grace ap[C]pear\nThe [G]hour I [D]first be[G]lieved.\n\n[Verse 3]\nThrough [G]many dangers, [G7]toils and [C]snares,\nI [G]have already [D]come;\n’Tis [G]grace hath brought me [G7]safe thus [C]far,\nAnd [G]grace will [D]lead me [G]home.\n\n[Verse 4]\nWhen [G]we’ve been there ten [G7]thousand [C]years,\nBright [G]shining as the [D]sun,\nWe’ve [G]no less days to [G7]sing God’s [C]praise\nThan [G]when we’d [D]first be[G]gun.' });
   const plan1 = db.get('plans', 'ev_1')!;
   db.put('plans', {
     ...plan1,

@@ -3,12 +3,13 @@
 import type { Db } from './db.js';
 import { ApiError } from './errors.js';
 import { withChurchMail } from './mail.js';
-import { PERMISSIONS } from './perms.js';
+import { permsOf, scopeOf, type Scope } from './perms.js';
 import { atLeast, checkPlan, effectivePlan, getSubscription, type BillingInterval, type PlanId } from './plans.js';
-import type { Channel, ChannelStatus, ChurchNetworkHost, Collections, DonationRecord, Kind, Permission, StaffRole } from './types.js';
+import type { CatalogSong, Channel, ChannelStatus, ChurchNetworkHost, Collections, DonationRecord, Kind, Permission, StaffRole } from './types.js';
 
 export type BillingCheckout = { churchId: string; churchName: string; plan: PlanId; interval: BillingInterval; currency: 'INR' | 'USD'; amount: number; email: string; name: string };
-export type Outgoing = { to: string; name: string; subject: string; text: string };
+/** `html` is the branded version of `text`; providers send both when it is there. */
+export type Outgoing = { to: string; name: string; subject: string; text: string; html?: string };
 export type DeliveryResult = { ok: boolean; error?: string };
 /** A church's own mailbox, unsealed, for the host to send through. */
 export type SmtpAccount = { host: string; port: number; user: string; pass: string; from: string; fromName: string };
@@ -95,7 +96,31 @@ export type Env = {
   smtp?: (account: SmtpAccount, batch: Outgoing[]) => Promise<DeliveryResult[]>;
   /** Push notifications to the member and team apps (Expo). Absent when the host has no push. */
   push?: (batch: PushMessage[]) => Promise<PushResult[]>;
+  /** Plain HTTPS for the church's connections (Zoom, Google Cloud Storage, Canva). The demo answers with stand-ins. */
+  http?: (req: HttpRequest) => Promise<HttpResponse>;
+  /** Google service-account signing (access tokens and V4 signed URLs). Absent when the host cannot sign. */
+  google?: {
+    accessToken(key: GoogleKey, scope: string): Promise<string>;
+    signedUrl(key: GoogleKey, input: { bucket: string; object: string; method: 'PUT' | 'GET'; contentType?: string; expiresSeconds: number }): Promise<string>;
+  };
+  /**
+   * Licensed lyrics services (SongSelect, a publisher, an Indian label) Flockwise has an agreement
+   * with. Each answers the lyrics-feed contract in docs/SONG-CATALOG.md over `http`. Empty or absent
+   * means copyrighted songs are added with credits only.
+   */
+  lyricsFeeds?: LyricsFeed[];
+  /** Songs and public-domain words the Flockwise team added to the shared song database (/platform/songs). */
+  songCatalog?: { stored(): CatalogSong[] };
+  /** Flockwise's Canva app, so churches can connect their Canva. Absent when CANVA_CLIENT_ID is not set. */
+  canvaApp?: { clientId: string; clientSecret: string; redirectUrl: string; pkce(): { verifier: string; challenge: string } };
 };
+
+/** One licensed lyrics service. `key` is sent as a bearer token. */
+export type LyricsFeed = { id: string; name: string; url: string; key: string; covers: 'all' | 'ccli' };
+
+export type HttpRequest = { method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'; url: string; headers?: Record<string, string>; body?: string | Uint8Array; timeoutMs?: number };
+export type HttpResponse = { status: number; headers: Record<string, string>; text: string };
+export type GoogleKey = { clientEmail: string; privateKey: string; projectId: string };
 
 /** What a signed access token says. The engine re-reads the staff role from the database on each request. */
 export type AuthClaims = { sub: string; staffId: string | null; scope: 'admin' | 'member'; keyId?: string; readOnly?: boolean };
@@ -128,6 +153,10 @@ export type Ctx = {
   role: StaffRole | null;
   can(p: Permission): boolean;
   require(p: Permission): void;
+  /** Set when the login is limited to some zones, groups or teams; null sees the whole church. */
+  scope: Scope | null;
+  /** May this login see this person? Always true for unscoped logins. */
+  inScope(personId: string | null | undefined): boolean;
   id(prefix: string): string;
   audit(action: string, entity: string, entityId: string | null, summary: string): void;
 };
@@ -153,7 +182,8 @@ export function makeCtx(db: Db, env: Env, req: Pick<Request, 'auth' | 'body' | '
   const staffRec = auth?.scope === 'admin' && auth.staffId ? db.get('staff', auth.staffId) : undefined;
   const staff = staffRec && staffRec.status === 'active' ? staffRec : null;
   const role = staff?.role ?? null;
-  const perms = new Set(role ? PERMISSIONS[role] : []);
+  const perms = new Set(staff ? permsOf(db, staff) : []);
+  const scope = staff ? scopeOf(db, staff) : null;
   const now = env.now();
   const ctx: Ctx = {
     db,
@@ -171,6 +201,8 @@ export function makeCtx(db: Db, env: Env, req: Pick<Request, 'auth' | 'body' | '
       return auth.sub;
     },
     can: (p) => perms.has(p),
+    scope,
+    inScope: (personId) => !scope || (!!personId && scope.people.has(personId)),
     require(p) {
       if (!perms.has(p)) throw new ApiError(403, 'forbidden', 'Your role does not have access to this. Ask the church owner or an admin.');
     },

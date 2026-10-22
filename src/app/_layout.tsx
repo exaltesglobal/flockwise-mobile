@@ -59,6 +59,8 @@ function RootNavigator({ fontsLoaded }: { fontsLoaded: boolean }) {
         <Stack.Protected guard={status === 'signedIn' && !session?.mustChangePassword}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="assignment/[id]" options={{ title: '', headerBackTitle: ' ' }} />
+          <Stack.Screen name="thread/[id]" options={{ title: '', headerBackTitle: ' ' }} />
+          <Stack.Screen name="thread/new" options={{ title: '', presentation: 'modal' }} />
           <Stack.Screen name="settings/server" options={{ title: 'Server', presentation: 'modal' }} />
         </Stack.Protected>
         <Stack.Protected guard={status === 'signedIn'}>
