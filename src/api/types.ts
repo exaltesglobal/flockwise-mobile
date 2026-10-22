@@ -2,39 +2,34 @@
 // shared engine (src/core/types.ts, copied from flockwise-api) so the server, the demo
 // and the screens can never drift apart.
 export type {
-  Announcement,
   ApiErrorBody,
   Assignment,
   AssignmentStatus,
   Blockout,
-  Campus,
   Church,
   ChurchEvent,
   Consent,
-  Currency,
-  DirectoryEntry,
-  Donation,
-  Fund,
-  GiveFrequency,
-  GiveIntent,
-  GiveIntentInput,
-  GivingStatement,
-  Group,
-  HomeFeed,
   LanguageCode,
   Member,
   MemberPreferences,
   MyServing,
   OtpRequest,
-  Paginated,
   PlanItem,
-  PledgeView,
-  PrayerView,
-  RsvpStatus,
   Session,
 } from '@/core/types';
 
-export type CheckinCode = { code: string; qr: string; name: string };
+// ----- team sign-in (flockwise-api: /team/teams, /auth/team/*) -----
+import type { Session } from '@/core/types';
+
+/** A serving team, as listed on the sign-in screen. */
+export type TeamRef = { id: string; name: string; color: string };
+
+/** The team app's session: the person, plus the one team they signed in for. */
+export type TeamSession = Session & {
+  team: { id: string; name: string };
+  /** Set when the church admin made the login: the emailed password must be changed first. */
+  mustChangePassword: boolean;
+};
 
 /** A church on the Flockwise server, looked up by its address. */
 export type ChurchPublic = { id: string; slug: string; name: string; city: string | null; logoUrl: string | null; isDefault: boolean };

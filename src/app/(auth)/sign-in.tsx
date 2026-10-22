@@ -1,50 +1,39 @@
 import { router } from 'expo-router';
 import { useState, useSyncExternalStore } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { Auth } from '@/api/endpoints';
-import { ApiError } from '@/api/errors';
-import { Button, Screen, T } from '@/components/ui';
+import { PasswordField } from '@/components/password-field';
+import { TeamPicker } from '@/components/team-picker';
+import { Button, Field, FormError, Screen, T } from '@/components/ui';
 import { useT } from '@/i18n';
 import { getChurch, onChurchChange } from '@/lib/church';
 import { isUsingMocks } from '@/lib/config';
 import { useSession } from '@/lib/session';
 import { Fonts, Radius, Space, usePalette } from '@/theme';
 
+/** Team sign-in: the person picks their team, then signs in with the password the church admin emailed them. */
 export default function SignIn() {
   const c = usePalette();
   const { t } = useT();
   const { signIn } = useSession();
+  // Teams belong to a church, so the team list follows the church picked here.
   const church = useSyncExternalStore(onChurchChange, getChurch);
+  const [teamId, setTeamId] = useState('');
   const [email, setEmail] = useState('');
-  const [requestId, setRequestId] = useState<string | null>(null);
-  const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
 
-  const input = [styles.input, { borderColor: c.border, color: c.text, backgroundColor: c.card }];
+  const ready = !!teamId && /^\S+@\S+\.\S+$/.test(email.trim()) && password.length > 0;
 
-  async function sendCode() {
+  async function submit() {
     setBusy(true);
     setError(null);
     try {
-      const res = await Auth.requestOtp(email.trim());
-      setRequestId(res.requestId);
+      await signIn(await Auth.signIn({ email: email.trim(), password, teamId }));
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function verify() {
-    if (!requestId) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await signIn(await Auth.verifyOtp(requestId, code.trim()));
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : String(e));
+      setError(e);
       setBusy(false);
     }
   }
@@ -54,80 +43,59 @@ export default function SignIn() {
       <Screen edges={['top', 'bottom']}>
         <View style={{ gap: Space.sm, marginTop: Space.xl }}>
           <T variant="title">{t('signInTitle')}</T>
-          <T variant="muted">{requestId ? t('codeSentTo', { target: email }) : t('signInBody')}</T>
+          <T variant="muted">{t('teamSignInBody')}</T>
         </View>
 
-        {!requestId && (
-          <Pressable
-            onPress={() => router.push('/church')}
-            accessibilityRole="button"
-            style={[styles.church, { borderColor: c.border, backgroundColor: c.card }]}
-          >
-            <View style={{ flex: 1 }}>
-              {church ? (
-                <>
-                  <T style={{ fontFamily: Fonts.bodyBold }}>{church.name}</T>
-                  {church.city ? <T variant="caption">{church.city}</T> : null}
-                </>
-              ) : (
-                <T variant="muted">{t('churchPick')}</T>
-              )}
-            </View>
-            <T style={{ color: c.primary, fontFamily: Fonts.bodyBold }}>{church ? t('churchChange') : '›'}</T>
-          </Pressable>
-        )}
+        <Pressable
+          onPress={() => {
+            setTeamId('');
+            router.push('/church');
+          }}
+          accessibilityRole="button"
+          style={[styles.church, { borderColor: c.border, backgroundColor: c.card }]}>
+          <View style={{ flex: 1 }}>
+            {church ? (
+              <>
+                <T style={{ fontFamily: Fonts.bodyBold }}>{church.name}</T>
+                {church.city ? <T variant="caption">{church.city}</T> : null}
+              </>
+            ) : (
+              <T variant="muted">{t('churchPick')}</T>
+            )}
+          </View>
+          <T style={{ color: c.primary, fontFamily: Fonts.bodyBold }}>{church ? t('churchChange') : '›'}</T>
+        </Pressable>
 
-        {!requestId ? (
-          <>
-            <TextInput
-              style={input}
-              placeholder={t('phoneOrEmail')}
-              placeholderTextColor={c.textMuted}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-              textContentType="emailAddress"
-              autoCorrect={false}
-            />
-            <Button title={t('sendCode')} onPress={sendCode} loading={busy} disabled={!/^\S+@\S+\.\S+$/.test(email.trim())} />
-          </>
-        ) : (
-          <>
-            <TextInput
-              style={[input, styles.code]}
-              placeholder="••••••"
-              placeholderTextColor={c.textMuted}
-              value={code}
-              onChangeText={setCode}
-              keyboardType="number-pad"
-              maxLength={6}
-              autoComplete="one-time-code"
-              textContentType="oneTimeCode"
-              autoFocus
-            />
-            <Button title={t('verify')} onPress={verify} loading={busy} disabled={code.length !== 6} />
-            <Button
-              title={t('changeNumber')}
-              variant="ghost"
-              onPress={() => {
-                setRequestId(null);
-                setCode('');
-              }}
-            />
-          </>
-        )}
+        <T variant="label">{t('yourTeam')}</T>
+        <TeamPicker key={church?.slug ?? 'default'} value={teamId} onChange={setTeamId} />
 
-        {error && <T style={{ color: c.danger }}>{error}</T>}
-        {isUsingMocks() && <T variant="caption">{t('demoHint')}</T>}
+        <Field
+          placeholder={t('emailLabel')}
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoComplete="email"
+          textContentType="username"
+          autoCorrect={false}
+        />
+        <PasswordField
+          placeholder={t('passwordLabel')}
+          value={password}
+          onChangeText={setPassword}
+          autoComplete="current-password"
+          textContentType="password"
+          onSubmitEditing={() => ready && submit()}
+        />
+        <FormError error={error} />
+        <Button title={t('signInButton')} onPress={submit} loading={busy} disabled={!ready} />
+        <Button title={t('forgotPassword')} variant="ghost" onPress={() => router.push({ pathname: '/forgot', params: { email: email.trim(), teamId } })} />
+        {isUsingMocks() && <T variant="caption">{t('teamDemoHint')}</T>}
       </Screen>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  input: { borderWidth: 1, borderRadius: Radius.md, paddingHorizontal: Space.md, height: 54, fontSize: 17, fontFamily: Fonts.body },
   church: { flexDirection: 'row', alignItems: 'center', gap: Space.md, borderWidth: 1, borderRadius: Radius.md, paddingHorizontal: Space.md, paddingVertical: Space.sm + 4 },
-  code: { fontFamily: Fonts.display, fontSize: 26, letterSpacing: 10, textAlign: 'center' },
 });

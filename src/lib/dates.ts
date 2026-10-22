@@ -12,17 +12,8 @@ export function addDays(date: string, days: number) {
 
 export const isIsoDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s));
 
-/** Indian financial year (April to March) containing `d`, e.g. "2026-27". */
-export function financialYear(d = new Date()) {
-  const start = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
-  return `${start}-${String((start + 1) % 100).padStart(2, '0')}`;
-}
-
-export function relativeTime(iso: string, locale: string) {
-  const diff = (Date.parse(iso) - Date.now()) / 1000;
-  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
-  const abs = Math.abs(diff);
-  if (abs < 3600) return rtf.format(Math.round(diff / 60), 'minute');
-  if (abs < 86400) return rtf.format(Math.round(diff / 3600), 'hour');
-  return rtf.format(Math.round(diff / 86400), 'day');
+/** Whole days from today until the local date of `iso` (0 = today). */
+export function daysUntil(iso: string) {
+  const day = (d: Date) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  return Math.round((day(new Date(iso)) - day(new Date())) / 86_400_000);
 }
