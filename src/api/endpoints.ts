@@ -4,6 +4,8 @@ import { api } from './client';
 import type {
   Assignment,
   Blockout,
+  CarolNightView,
+  CarolStopStatus,
   ChurchFound,
   ChurchPublic,
   Consent,
@@ -66,4 +68,11 @@ export const Hub = {
     api.post<HubPost>(`/team/${teamId}/threads/${threadId}/messages`, input),
   tasks: () => api.get<MyTask[]>('/me/tasks'),
   setTaskDone: (id: string, done: boolean) => api.patch<HubPost>(`/me/tasks/${id}`, { done }),
+};
+
+// Christmas carol rounds: the team's own nights only. Offerings are in minor units (paise).
+export const Carols = {
+  mine: (teamId: string) => api.get<{ season: { id: string; name: string; fundName: string | null } | null; nights: CarolNightView[] }>(`/team/${teamId}/carols`),
+  updateStop: (teamId: string, nightId: string, key: string, patch: { status?: CarolStopStatus; offering?: number | null; note?: string }) =>
+    api.patch<CarolNightView>(`/team/${teamId}/carols/${nightId}/stops/${encodeURIComponent(key)}`, patch),
 };

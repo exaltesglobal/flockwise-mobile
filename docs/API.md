@@ -82,3 +82,12 @@ Full contract: flockwise-api `docs/API-ADMIN.md`, "Team hub: notices, threads an
 | PATCH | `/me/tasks/:id` | `{ done }` | the task |
 
 Push links: `/app/team/<teamId>/threads/<id>` opens that chat, `/app/tasks/<id>` opens Tasks.
+
+## Christmas carol rounds
+
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| GET | `/team/:teamId/carols` | | `{ season, nights: CarolNightView[] }`, this team's nights only |
+| PATCH | `/team/:teamId/carols/:nightId/stops/:key` | `{ status?: planned\|visited\|not_home\|skipped, offering?: minor units\|null, note? }` | `CarolNightView` |
+
+Offerings are recorded by the server as cash gifts to the season's fund. Push `carol.visit` links to `/app/carols`, which opens the carols screen.

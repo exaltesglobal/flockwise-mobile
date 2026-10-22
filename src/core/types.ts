@@ -856,8 +856,14 @@ export type Slide = {
   alt: string[];
   /** Chord-and-lyric lines for the stage display. */
   chords: string[];
+  /** The lines in English letters when they are in an Indian script and the theme asks for it. */
+  roman: string[];
 };
-export type PresentationTheme = { background: string; textColor: string; imageUrl: string; fontScale: number; linesPerSlide: number; showAlt: boolean; titleSlides: boolean; uppercase: boolean };
+export type PresentationTheme = {
+  background: string; textColor: string; imageUrl: string; fontScale: number; linesPerSlide: number; showAlt: boolean; titleSlides: boolean; uppercase: boolean;
+  /** Show Telugu, Hindi, Tamil (and other Indian-script) words in English letters under the lyrics. */
+  transliterate?: boolean;
+};
 export type PresentationMode = 'live' | 'blank' | 'logo' | 'countdown';
 /** A name strap for the livestream: speaker, reader, Bible reference or announcement. */
 export type LowerThird = { id: string; title: string; subtitle: string };
@@ -980,6 +986,21 @@ export type ChitthiStatus = {
   connected: boolean; workspace: string; keyHint: string; template: string; language: string; params: number;
   connectedAt: string | null; lastError: string | null; lastSentAt: string | null; signupUrl: string;
 };
+/** WhatsApp by Chitthi bought with the plan: our team makes the workspace, registers the number and connects the key. */
+export type ChitthiSetupStatus = 'requested' | 'in_progress' | 'ready' | 'cancelled';
+export type ChitthiSetup = {
+  id: 'chitthiSetup';
+  status: ChitthiSetupStatus;
+  requestedAt: string;
+  requestedBy: string;
+  requestedByEmail: string;
+  /** The WhatsApp number the church wants to send from, and the business name Meta should show. */
+  phone: string;
+  businessName: string;
+  readyAt: string | null;
+  /** A note from the Flockwise team that the church sees. */
+  teamNote: string;
+};
 export type ChitthiTemplate = { name: string; language: string; category: string; body: string; params: number };
 
 /** The church's own mailbox (Gmail, Google Workspace, Outlook, Hostinger or any SMTP). Every email leaves from it. */
@@ -1035,7 +1056,43 @@ export type CanvaDesign = { id: string; title: string; editUrl: string; viewUrl:
 export type Device = { id: string; personId: string; token: string; platform: 'android' | 'ios' | 'web'; app: 'member' | 'team'; createdAt: string; lastSeenAt: string };
 
 /** Things Flockwise can tell people about on its own. The office picks the channels for each. */
-export type NotificationKind = 'rota.assigned' | 'event.changed' | 'announcement.published' | 'prayer.new' | 'prayer.chain' | 'care.assigned' | 'visitor.new' | 'door.scanned' | 'team.notice' | 'team.message' | 'task.assigned';
+export type NotificationKind = 'rota.assigned' | 'event.changed' | 'announcement.published' | 'prayer.new' | 'prayer.chain' | 'care.assigned' | 'visitor.new' | 'door.scanned' | 'team.notice' | 'team.message' | 'task.assigned' | 'carol.visit';
+
+// ---------- Christmas carol rounds ----------
+
+export type CarolStopStatus = 'planned' | 'visited' | 'not_home' | 'skipped';
+/** One home on a night's route. `personIds` are the household members, for reminders. */
+export type CarolStop = { familyKey: string; familyName: string; address: string | null; phone: string | null; personIds: string[]; eta: string; status: CarolStopStatus; offering: number | null; note: string; visitedAt: string | null };
+export type CarolNight = { id: string; seasonId: string; date: string; startTime: string; teamId: string | null; teamName: string; leaderName: string; zoneId: string | null; area: string; stops: CarolStop[]; notes: string; createdAt: string };
+export type CarolNightView = CarolNight & { total: number; visited: number; offering: number; mapsUrl: string };
+export type CarolSeason = {
+  id: string; name: string; from: string; to: string;
+  /** When the team sets out each night, HH:MM church time. */
+  startTime: string;
+  minutesPerHouse: number; travelMinutes: number; housesPerNight: number;
+  /** Weekdays the team stays home (0 = Sunday). */
+  offDays: number[];
+  /** Offerings taken at the door are recorded as cash gifts to this fund. */
+  fundId: string | null;
+  /** What households read when asked to pick a night. */
+  message: string;
+  createdAt: string;
+};
+export type CarolRequest = { id: string; seasonId: string; familyKey: string; familyName: string; personId: string; preferredDates: string[]; note: string; createdAt: string };
+export type CarolSeasonView = CarolSeason & {
+  fundName: string | null;
+  dates: string[];
+  nights: CarolNightView[];
+  requests: (CarolRequest & { placed: boolean })[];
+  waiting: { familyKey: string; familyName: string; address: string | null; zoneName: string | null; preferredDates: string[] }[];
+  totals: { nights: number; homes: number; visited: number; offering: number; requests: number };
+};
+export type MyCarols = {
+  season: { id: string; name: string; from: string; to: string; message: string } | null;
+  visit: { date: string; eta: string; teamName: string; status: CarolStopStatus } | null;
+  request: CarolRequest | null;
+  dates: string[];
+};
 export type NotificationRule = { email: boolean; push: boolean; whatsapp: boolean };
 export type NotificationCatalogEntry = { kind: NotificationKind; label: string; description: string; audience: string; rule: NotificationRule; sentCount: number };
 export type NotificationsView = { rules: NotificationCatalogEntry[]; devices: { member: number; team: number }; emailFrom: string | null };
@@ -1203,7 +1260,7 @@ export type AccountsSummary = {
 
 export type Collections = {
   settings: ChurchSettings & { id: string };
-  integrations: ChitthiConfig | RazorpayConfig | RazorpaySetup | WaBotConfig | EmailAccountConfig | ZoomConfig | GcsConfig | CanvaConfig | SongLicenceConfig;
+  integrations: ChitthiConfig | RazorpayConfig | RazorpaySetup | ChitthiSetup | WaBotConfig | EmailAccountConfig | ZoomConfig | GcsConfig | CanvaConfig | SongLicenceConfig;
   media: MediaItem;
   canvaDesigns: CanvaDesign;
   kycFiles: KycFile;
@@ -1249,6 +1306,9 @@ export type Collections = {
   roles: CustomRole;
   hubChannels: HubChannel;
   hubPosts: HubPost;
+  carolSeasons: CarolSeason;
+  carolNights: CarolNight;
+  carolRequests: CarolRequest;
   rooms: Room;
   checkins: Checkin;
   teams: Team;
@@ -1292,7 +1352,7 @@ export const KINDS = [
   'funds', 'donations', 'pledges', 'plans', 'announcements', 'staff', 'rooms', 'checkins', 'teams', 'assignments', 'blockouts',
   'songs', 'messages', 'templates', 'care', 'prayer', 'audit', 'otps', 'refreshTokens', 'attendanceHistory', 'meta',
   'forms', 'formResponses', 'resources', 'bookings', 'customFields', 'smartLists', 'workflows', 'workflowCards', 'live', 'headcounts',
-  'batches', 'groupPosts', 'groupResources', 'sermons', 'greetings', 'presentations', 'integrations', 'apiKeys', 'roles', 'hubChannels', 'hubPosts',
+  'batches', 'groupPosts', 'groupResources', 'sermons', 'greetings', 'presentations', 'integrations', 'apiKeys', 'roles', 'hubChannels', 'hubPosts', 'carolSeasons', 'carolNights', 'carolRequests',
   'registers', 'zones', 'visits', 'accountHeads', 'expenses', 'kycFiles', 'recurring', 'botMessages', 'campaigns', 'envelopes', 'inKind', 'auctionLots', 'consentLog', 'dataRequests', 'parentPages', 'bulletins',
   'ssClasses', 'ssLessons', 'ssAttendance', 'ssExams', 'ssMarks',
   'missionaries', 'missionSupport', 'missionReports', 'missionPayouts',

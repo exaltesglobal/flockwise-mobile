@@ -20,3 +20,8 @@ export function formatWhen(iso: string, locale = 'en-IN', yesterday = 'Yesterday
   if (days === 1) return yesterday;
   return d.toLocaleDateString(locale, { day: 'numeric', month: 'short' });
 }
+
+/** Minor units (paise, cents) as money, e.g. 150000 INR → ₹1,500. */
+export function formatMoney(minor: number, currency = 'INR', locale = 'en-IN') {
+  return new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: minor % 100 ? 2 : 0 }).format(minor / 100);
+}
