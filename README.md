@@ -42,8 +42,9 @@ choose Worship and sign in as `priya@example.com` with the password `demo1234`
 Demo mode runs the real church engine (`src/core`, copied verbatim from
 `flockwise-api/src/core`) on the phone, so demo and production behave the same.
 When the backend changes, copy its `src/core` folder over this one. Team sign-in
-(`/team/teams`, `/auth/team/*`) is faked in `src/api/mock.ts` until the engine has it;
-remove that stand-in once a synced `src/core` handles those routes.
+(`/team/teams`, `/auth/team/*`) comes from the engine too. Logins are created by the
+church office in the web admin (Volunteers › Teams › Members › "Send app login"),
+which emails a temporary password; the app then asks for a new one.
 `metro.config.js` lets Metro resolve the engine's `./x.js` imports.
 
 The API location is a setting, not code:
