@@ -15,7 +15,7 @@ export { DEMO_CODE as DEMO_OTP } from '@/core';
 // The sample church gives Priya (priya@example.com) a team login with this password.
 export const DEMO_PASSWORD = 'demo1234';
 
-const DB_KEY = 'fw.demoDb.v3';
+const DB_KEY = 'fw.demoDb.v4';
 const RESEED_AFTER_DAYS = 7; // event dates are relative to the seed day
 const DAY = 86_400_000;
 

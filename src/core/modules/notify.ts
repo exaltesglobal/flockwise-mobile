@@ -3,7 +3,7 @@
 // the member or team app, and optionally on WhatsApp. The office chooses the channels per kind.
 import type { Ctx, Router } from '../engine.js';
 import { ApiError } from '../errors.js';
-import { PERMISSIONS } from '../perms.js';
+import { permsOf } from '../perms.js';
 import type { Collections, NotificationCatalogEntry, NotificationKind, NotificationRule, NotificationsView } from '../types.js';
 import { normEmail, requireFields, settings } from '../util.js';
 import { deliverAll } from './integrations.js';
@@ -14,9 +14,13 @@ export const CATALOG: Record<NotificationKind, Entry> = {
   'event.changed': { label: 'Service or event moved', description: 'The time or place of an event changed.', audience: 'People who RSVPed or are serving', rule: { email: true, push: true, whatsapp: false } },
   'announcement.published': { label: 'New announcement', description: 'An announcement is published in the app.', audience: 'Everyone in the church', rule: { email: false, push: true, whatsapp: false } },
   'prayer.new': { label: 'New prayer request', description: 'Someone asks for prayer in the app.', audience: 'Pastors and care team', rule: { email: true, push: true, whatsapp: false } },
+  'prayer.chain': { label: 'Prayer chain', description: 'The office sends a request to everyone on the prayer chain. On WhatsApp they reply PRAYED.', audience: 'People who joined the prayer chain', rule: { email: false, push: true, whatsapp: true } },
   'care.assigned': { label: 'Care case assigned', description: 'A follow-up or visit is given to a team member.', audience: 'The assigned team member', rule: { email: true, push: true, whatsapp: false } },
   'visitor.new': { label: 'New visitor', description: 'A newcomer signs up in the app or is added as a visitor.', audience: 'Pastors and care team', rule: { email: true, push: true, whatsapp: false } },
   'door.scanned': { label: 'Family arrived', description: 'Someone in the family scanned the door QR.', audience: 'Other adults in the household', rule: { email: false, push: true, whatsapp: false } },
+  'team.notice': { label: 'Team notice', description: 'A notice is posted on the team hub.', audience: 'Everyone in that channel', rule: { email: true, push: true, whatsapp: false } },
+  'team.message': { label: 'Team hub mention or thread message', description: 'Someone is named with @ or gets a message in a small thread.', audience: 'The people named or in the thread', rule: { email: false, push: true, whatsapp: false } },
+  'task.assigned': { label: 'Task given', description: 'A task on the team hub is given to someone.', audience: 'The person it is given to', rule: { email: true, push: true, whatsapp: false } },
 };
 export const KINDS = Object.keys(CATALOG) as NotificationKind[];
 
@@ -26,7 +30,7 @@ export const ruleFor = (ctx: Ctx, kind: NotificationKind): NotificationRule => (
 export function pastorIds(ctx: Ctx): string[] {
   const out = new Set<string>();
   for (const s of ctx.db.all('staff')) {
-    if (s.status !== 'active' || !PERMISSIONS[s.role].includes('care')) continue;
+    if (s.status !== 'active' || !permsOf(ctx.db, s).includes('care')) continue;
     const p = ctx.db.get('people', s.personId) ?? ctx.db.all('people').find((x) => normEmail(x.email) === normEmail(s.email));
     if (p) out.add(p.id);
   }

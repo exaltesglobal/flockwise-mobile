@@ -15,7 +15,23 @@ export type Church = {
   country: string;
   currency: Currency;
   logoUrl?: string | null;
+  /** Colours and type from Settings › Church › Brand kit, so every screen matches the logo. */
+  brand?: BrandKit | null;
   paymentProvider: 'razorpay' | 'stripe';
+};
+
+/** The church's brand kit. The logo (Church.logoUrl) always appears beside the name; these go with it. */
+export type BrandFont = 'modern' | 'classic' | 'rounded' | 'elegant';
+export type BrandKit = {
+  /** Buttons, links and headers, as #rrggbb. */
+  primary: string;
+  /** Highlights and the invitation ribbon, as #rrggbb. */
+  accent: string;
+  font: BrandFont;
+  /** A version of the logo for dark backgrounds (projector, dark mode). Falls back to logoUrl. */
+  logoDarkUrl?: string | null;
+  /** One line under the name on invitations and the public page. */
+  tagline?: string;
 };
 
 export type Member = {
@@ -29,7 +45,34 @@ export type Member = {
   householdName?: string | null;
 };
 
-export type StaffRole = 'owner' | 'admin' | 'pastor' | 'finance' | 'leader' | 'coordinator' | 'checkin';
+export type StaffRole = 'owner' | 'admin' | 'pastor' | 'finance' | 'leader' | 'coordinator' | 'checkin' | 'custom';
+export type BuiltInRole = Exclude<StaffRole, 'custom'>;
+/** What part of the church a custom role is limited to. */
+export type RoleScope = 'church' | 'zone' | 'group' | 'team';
+export const ROLE_SCOPES: { id: RoleScope; label: string; hint: string }[] = [
+  { id: 'church', label: 'Whole church', hint: 'Sees everyone the permissions allow' },
+  { id: 'zone', label: 'Their zone(s)', hint: 'Only people in the zones they lead' },
+  { id: 'group', label: 'Their group(s)', hint: 'Only members of the groups they lead' },
+  { id: 'team', label: 'Their serving team(s)', hint: 'Only volunteers on the teams they lead' },
+];
+/** A role the church made itself: a name, a list of permissions and how far it reaches. */
+export type CustomRole = { id: string; name: string; description: string; permissions: Permission[]; scope: RoleScope; createdAt: string };
+export const PERMISSION_INFO: { id: Permission; label: string; hint: string }[] = [
+  { id: 'people.view', label: 'See people', hint: 'Directory, families, attendance, celebrations' },
+  { id: 'people.edit', label: 'Edit people', hint: 'Add and change people, tags, notes' },
+  { id: 'giving.view', label: 'See giving', hint: 'Gifts, pledges and statements' },
+  { id: 'giving.edit', label: 'Record giving', hint: 'Enter offerings and expenses' },
+  { id: 'events', label: 'Events', hint: 'Create events, registrations, invitations' },
+  { id: 'groups', label: 'Groups', hint: 'Small groups, meetings, join requests' },
+  { id: 'comms', label: 'Messages', hint: 'WhatsApp, SMS, email, announcements, media library' },
+  { id: 'care', label: 'Pastoral care', hint: 'Care cases, prayer requests, visits' },
+  { id: 'checkin', label: 'Check-in', hint: 'Kids check-in desk and rooms' },
+  { id: 'volunteers', label: 'Volunteers', hint: 'Serving teams and rotas' },
+  { id: 'services', label: 'Services', hint: 'Service plans, songs, presentation' },
+  { id: 'insights', label: 'Insights', hint: 'Reports and dashboards' },
+  { id: 'settings', label: 'Settings', hint: 'Church settings, integrations, billing' },
+  { id: 'staff', label: 'Team and roles', hint: 'Invite staff, make roles, give access' },
+];
 
 export type Session = {
   accessToken: string;
@@ -37,7 +80,7 @@ export type Session = {
   expiresAt: string;
   member: Member;
   church: Church;
-  staff?: { role: StaffRole; permissions: Permission[] } | null;
+  staff?: { role: StaffRole; permissions: Permission[]; roleName?: string; scope?: { kind: RoleScope; ids: string[] } | null } | null;
 };
 
 export type OtpRequest = { requestId: string; channel: 'email'; expiresInSeconds: number };
@@ -55,6 +98,8 @@ export type ChurchEvent = {
   endsAt: string;
   location: string;
   imageUrl?: string | null;
+  /** Join link for an online or hybrid meeting (Zoom, Google Meet, YouTube), if any. */
+  meetingUrl?: string | null;
   goingCount: number;
   capacity?: number | null;
   myRsvp: RsvpStatus | null;
@@ -124,6 +169,8 @@ export type Person = {
   checkinCode: string;
   /** The zone, prayer cell or family unit the household belongs to. */
   zoneId?: string | null;
+  /** Joined the prayer chain: gets prayer requests the office sends out, and replies PRAYED. */
+  prayerChain?: boolean;
 };
 
 export type PersonInput = Partial<Omit<Person, 'id' | 'joinedAt' | 'lastAttendedAt' | 'groups' | 'checkinCode'>> & { firstName: string; lastName: string };
@@ -154,8 +201,11 @@ export type AdminEvent = Omit<ChurchEvent, 'myRsvp' | 'checkedIn'> & {
   campusId: string | null;
   checkinEnabled: boolean;
   checkinCount: number;
+  /** The Zoom meeting Flockwise created for this event, if any. */
+  zoom?: ZoomMeeting | null;
 };
-export type EventInput = Omit<AdminEvent, 'id' | 'goingCount' | 'attendance' | 'checkinCount' | 'campusName'>;
+export type ZoomMeeting = { meetingId: string; joinUrl: string; startUrl: string; passcode: string };
+export type EventInput = Omit<AdminEvent, 'id' | 'goingCount' | 'attendance' | 'checkinCount' | 'campusName' | 'zoom'>;
 export type EventAttendee = { personId: string; name: string; phone: string | null; rsvp: boolean; checkedIn: boolean; paid: boolean | null };
 
 // ---------- groups ----------
@@ -230,7 +280,7 @@ export type Pledge = { id: string; personId: string; personName: string; fundId:
 export type PledgeView = Pledge & { given: number; currency: Currency; /** The AutoPay paying this pledge, if any. */ autopay?: { id: string; status: RecurringStatus; amount: number } | null };
 
 export type GivingStatement = {
-  church: { name: string; address: string; pan: string | null; registration80g: string | null };
+  church: { name: string; address: string; logoUrl: string | null; pan: string | null; registration80g: string | null };
   donor: { id: string; name: string; pan: string | null; address: string | null };
   financialYear: string;
   currency: Currency;
@@ -317,12 +367,22 @@ export type PlanItem = {
   text?: string;
 };
 export type Plan = { id: string; eventId: string; theme: string; notes: string; items: PlanItem[]; updatedAt: string; rehearsalAt?: string | null; rehearsalNotes?: string };
+/** Chart colours a church picks for a song: page background, words, chords and section headings. Hex like #1f6b5c. */
+export type SongColours = { background?: string; lyrics?: string; chords?: string; headings?: string };
 export type Song = {
   id: string; title: string; author: string; defaultKey: string; bpm: number | null; ccli: string; tags: string[]; lyrics: string; chordChart?: string; attachments?: SongAttachment[];
   /** Lyrics in a second language with the same section headings, shown under the main lyrics. */
   lyricsAlt?: string;
   /** Default section order. */
   arrangement?: string[];
+  /** The shared song database entry this song was added from. */
+  catalogId?: string;
+  /** Copyright line to show with the words, e.g. "Public domain" or "© 2011 Thankyou Music". */
+  copyright?: string;
+  /** The licensed lyrics service the words came from, when not public domain. */
+  licensedFrom?: string;
+  /** Colours for the chord chart on screen, the musicians' view and PDFs. Empty = the app's defaults. */
+  colours?: SongColours;
 };
 export type SongView = Song & { timesUsed: number; lastUsedAt: string | null };
 export type ServiceSummary = { event: AdminEvent; items: number; minutes: number; songs: string[]; theme: string; volunteers: { filled: number; needed: number } };
@@ -359,7 +419,8 @@ export type Automations = {
   birthday: Automation;
   anniversary: Automation;
   welcome: Automation & { createFollowUp: boolean };
-  missing: Automation & { weeks: number; createFollowUp: boolean };
+  /** askReply: the WhatsApp asks for a 1/2/3 reply that lands on the care case. assignLeader: the case goes to the person's zone leader. */
+  missing: Automation & { weeks: number; createFollowUp: boolean; askReply?: boolean; assignLeader?: boolean };
   volunteerReminder: Automation & { daysBefore: number };
   /** Email to pastors and care staff listing upcoming birthdays and anniversaries. */
   staffDigest: { enabled: boolean; daysAhead: number };
@@ -400,13 +461,17 @@ export type PrayerRequest = {
   prayedBy: string[];
   createdAt: string;
   answeredNote: string | null;
+  /** When the office sent it to the prayer chain, and to how many people. */
+  chainSentAt?: string | null;
+  chainCount?: number;
 };
+export type PrayerChain = { members: number; people: { id: string; name: string; phone: string | null }[] };
 export type PrayerView = Omit<PrayerRequest, 'prayedBy'> & { prayedCount: number; iPrayed: boolean; mine: boolean };
 
 // ---------- directory ----------
 
 export type DirectoryEntry = { householdName: string; area: string | null; people: { id: string; name: string; phone: string | null; email: string | null }[] };
-export type MemberPreferences = { consent: Consent; checkinCode: string; campusId: string | null };
+export type MemberPreferences = { consent: Consent; checkinCode: string; campusId: string | null; prayerChain: boolean };
 
 // ---------- dashboards ----------
 
@@ -452,6 +517,8 @@ export type ChurchSettings = Church & {
   childAgeLimit: number;
   publicPage?: PublicPage;
   presentation?: Partial<PresentationTheme>;
+  /** OBS Studio: which scene goes with each kind of plan item. */
+  obs?: Partial<ObsSettings>;
   /** Secret in the projector, stage and OBS overlay links so those screens need no sign-in. */
   screenKey?: string;
   /** AI requests allowed each month (the plan's allowance). */
@@ -467,6 +534,7 @@ export type ChurchSettings = Church & {
   notifications?: Partial<Record<NotificationKind, NotificationRule>>;
   /** How many automatic notifications went out, by kind. */
   notificationCounts?: Partial<Record<NotificationKind, number>>;
+  brand?: BrandKit;
 };
 
 export type Permission =
@@ -485,7 +553,55 @@ export type Permission =
   | 'staff'
   | 'insights';
 
-export type StaffMember = { id: string; personId: string | null; name: string; email: string; phone: string | null; role: StaffRole; status: 'active' | 'invited'; lastActiveAt: string | null };
+export type StaffMember = {
+  id: string; personId: string | null; name: string; email: string; phone: string | null; role: StaffRole; status: 'active' | 'invited'; lastActiveAt: string | null;
+  /** The custom role, when role is 'custom'. */
+  roleId?: string | null;
+  /** Zones, groups or teams this login is limited to (by the role's scope). Empty = whole church. */
+  scopeIds?: string[];
+};
+export type StaffView = StaffMember & { roleName: string; scopeKind: RoleScope; scopeNames: string[]; permissions: Permission[] };
+/** A person's office access, as shown on their record. */
+export type PersonAccess = { staffId: string | null; role: StaffRole | null; roleId: string | null; roleName: string | null; scopeKind: RoleScope; scopeIds: string[]; status: 'active' | 'invited' | null; email: string | null };
+
+// ---------- team hub: notices, chat threads and tasks for staff and volunteers ----------
+/** Who someone is in the hub: a person (`p:<personId>`) or an office login with no person record (`s:<staffId>`). */
+export type HubKey = string;
+export type HubMember = { key: HubKey; personId: string | null; staffId: string | null; name: string };
+export type HubChannelKind = 'staff' | 'team' | 'custom';
+export type HubChannel = {
+  id: string;
+  name: string;
+  kind: HubChannelKind;
+  /** The serving team this channel belongs to (kind team, or a custom thread made inside a team). */
+  teamId: string | null;
+  /** Members of a custom thread. Staff and team channels work out their members. */
+  memberKeys: HubKey[];
+  createdBy: HubKey;
+  createdAt: string;
+  archived: boolean;
+};
+export type HubPostKind = 'message' | 'notice' | 'task';
+export type HubTask = { assigneeKey: HubKey; assigneeName: string; dueAt: string | null; done: boolean; doneAt: string | null; doneByName: string | null };
+export type HubPost = {
+  id: string;
+  channelId: string;
+  kind: HubPostKind;
+  text: string;
+  authorKey: HubKey;
+  authorName: string;
+  at: string;
+  /** Notices pin to the top until unpinned. */
+  pinned: boolean;
+  /** People named with @ in the text. */
+  mentions: HubKey[];
+  task: HubTask | null;
+};
+export type HubChannelView = HubChannel & { members: HubMember[]; teamName: string | null; unread: number; lastAt: string | null; lastText: string; openTasks: number };
+export type HubChannelDetail = { channel: HubChannelView; pinned: HubPost[]; posts: HubPost[]; nextCursor: string | null };
+/** A task as the team app shows it. */
+export type MyTask = HubPost & { channelName: string; teamId: string | null };
+export type HubView = { me: HubMember; channels: HubChannelView[]; tasks: MyTask[]; people: HubMember[] };
 
 export type AuditEntry = { id: string; at: string; actorId: string | null; actorName: string; action: string; entity: string; entityId: string | null; summary: string };
 
@@ -756,6 +872,52 @@ export type PresentationState = {
   /** When the countdown ends (defaults to the service start). */
   countdownTo?: string | null;
 };
+/** One plan item for the musicians' phones: the full chart in the service key, plus who and what. */
+export type BandItem = {
+  itemIndex: number;
+  id: string;
+  kind: PlanItemKind;
+  title: string;
+  person: string;
+  minutes: number;
+  notes: string;
+  /** Key for this service (the plan item's key, else the song's). */
+  key: string | null;
+  /** The key the chart is written in. */
+  songKey: string | null;
+  bpm: number | null;
+  author: string;
+  /** ChordPro chart (or plain lyrics / reading text when the song has no chords), in songKey. */
+  chart: string;
+  hasChords: boolean;
+  /** Section order for this service, when it differs from the chart. */
+  arrangement: string[];
+  /** The song's chart colours, when the church set any. */
+  colours?: SongColours;
+};
+/** What the stream does as the presenter moves through the plan. Lives in church settings; the browser on the media desk talks to OBS. */
+export type ObsSettings = {
+  /** OBS scene names by plan-item kind, plus the countdown and blank screens. Blank = leave the scene alone. */
+  scenes: Partial<Record<ObsMoment, string>>;
+  /** Switch scenes automatically as the presenter moves through the plan. */
+  autoSwitch: boolean;
+  /** Put the lyrics bar on the stream whenever a song is on screen, and take it off after. */
+  lyricsOnSongs: boolean;
+};
+export type ObsMoment = PlanItemKind | 'countdown' | 'blank';
+export const OBS_MOMENTS: { id: ObsMoment; label: string; hint: string }[] = [
+  { id: 'countdown', label: 'Before the service', hint: 'Countdown and announcements' },
+  { id: 'song', label: 'Songs', hint: 'Worship team wide shot' },
+  { id: 'reading', label: 'Scripture readings', hint: 'Lectern' },
+  { id: 'sermon', label: 'Sermon', hint: 'Pulpit close-up' },
+  { id: 'prayer', label: 'Prayer', hint: '' },
+  { id: 'announcement', label: 'Announcements', hint: '' },
+  { id: 'offering', label: 'Offering', hint: 'UPI QR on screen' },
+  { id: 'video', label: 'Videos', hint: 'Full-screen media' },
+  { id: 'other', label: 'Other items', hint: '' },
+  { id: 'blank', label: 'Screens blank', hint: 'e.g. a wide shot or holding card' },
+];
+
 export type PresentationView = {
   event: { id: string; title: string; startsAt: string; endsAt: string };
   churchName: string;
@@ -768,6 +930,10 @@ export type PresentationView = {
   announcements: { title: string; body: string }[];
   /** Lower-thirds suggested from the plan (preacher, readers, references). */
   suggestedLowerThirds: LowerThird[];
+  /** Every item with its chart, for the musicians' view. */
+  charts: BandItem[];
+  /** OBS scene plan for the media desk. */
+  obs: ObsSettings;
   /** Key for the sign-in-free screen links (projector PC, OBS Browser Source). Office logins only. */
   screenKey?: string;
 };
@@ -833,11 +999,43 @@ export type EmailAccountConfig = {
 };
 export type EmailAccountStatus = { connected: boolean; host: string; port: number; user: string; from: string; fromName: string; connectedAt: string | null; lastError: string | null; lastSentAt: string | null };
 
+// ----- connections: Zoom, Google Cloud Storage, Canva -----
+
+/** A church's Zoom (Server-to-Server OAuth app), for meeting links on events. */
+export type ZoomConfig = { id: 'zoom'; accountId: string; clientId: string; clientSecretSealed: string; userEmail: string; userName: string; connectedAt: string; connectedBy: string; lastError: string | null };
+export type ZoomStatus = { connected: boolean; accountId: string; userEmail: string; userName: string; connectedAt: string | null; lastError: string | null; meetings: number };
+/** A church's Google Cloud Storage bucket for photos and videos, with the service-account key sealed. */
+export type GcsConfig = { id: 'gcs'; bucket: string; projectId: string; clientEmail: string; privateKeySealed: string; /** Whether the bucket lets anyone read objects; otherwise links are signed for a week. */ publicRead: boolean; connectedAt: string; connectedBy: string; lastError: string | null };
+export type GcsStatus = { available: boolean; connected: boolean; bucket: string; projectId: string; clientEmail: string; publicRead: boolean; connectedAt: string | null; lastError: string | null; files: number; bytes: number };
+/** A church's Canva, connected by a staff member through OAuth; tokens sealed. */
+export type CanvaConfig = { id: 'canva'; accessTokenSealed: string; refreshTokenSealed: string; expiresAt: string; userName: string; teamName: string; connectedAt: string; connectedBy: string; lastError: string | null };
+export type CanvaStatus = { available: boolean; connected: boolean; userName: string; teamName: string; connectedAt: string | null; lastError: string | null; designs: number };
+export type ConnectionsStatus = { chitthi: ChitthiStatus; email: EmailAccountStatus; zoom: ZoomStatus; gcs: GcsStatus; canva: CanvaStatus };
+
+export type MediaFolder = 'general' | 'sermons' | 'events' | 'kids' | 'brand';
+export const MEDIA_FOLDERS: { id: MediaFolder; label: string }[] = [
+  { id: 'general', label: 'General' }, { id: 'sermons', label: 'Sermons' }, { id: 'events', label: 'Events' }, { id: 'kids', label: 'Kids & Sunday school' }, { id: 'brand', label: 'Brand & logos' },
+];
+/** A photo, video or file in the church's own bucket. */
+export type MediaItem = {
+  id: string; name: string; contentType: string; size: number; folder: MediaFolder;
+  /** Object path in the bucket. */
+  object: string;
+  /** Where to see it: a public link, or a signed one that lasts a week. */
+  url: string;
+  status: 'pending' | 'ready';
+  uploadedBy: string; createdAt: string;
+};
+export type MediaUpload = { item: MediaItem; uploadUrl: string; headers: Record<string, string> };
+export type MediaList = { data: MediaItem[]; gcs: GcsStatus };
+/** A Canva design Flockwise opened for the church. */
+export type CanvaDesign = { id: string; title: string; editUrl: string; viewUrl: string; thumbnailUrl: string | null; kind: string; createdAt: string };
+
 /** A phone that can receive push notifications, registered by the member app or the team app. */
 export type Device = { id: string; personId: string; token: string; platform: 'android' | 'ios' | 'web'; app: 'member' | 'team'; createdAt: string; lastSeenAt: string };
 
 /** Things Flockwise can tell people about on its own. The office picks the channels for each. */
-export type NotificationKind = 'rota.assigned' | 'event.changed' | 'announcement.published' | 'prayer.new' | 'care.assigned' | 'visitor.new' | 'door.scanned';
+export type NotificationKind = 'rota.assigned' | 'event.changed' | 'announcement.published' | 'prayer.new' | 'prayer.chain' | 'care.assigned' | 'visitor.new' | 'door.scanned' | 'team.notice' | 'team.message' | 'task.assigned';
 export type NotificationRule = { email: boolean; push: boolean; whatsapp: boolean };
 export type NotificationCatalogEntry = { kind: NotificationKind; label: string; description: string; audience: string; rule: NotificationRule; sentCount: number };
 export type NotificationsView = { rules: NotificationCatalogEntry[]; devices: { member: number; team: number }; emailFrom: string | null };
@@ -1005,7 +1203,9 @@ export type AccountsSummary = {
 
 export type Collections = {
   settings: ChurchSettings & { id: string };
-  integrations: ChitthiConfig | RazorpayConfig | RazorpaySetup | WaBotConfig | EmailAccountConfig;
+  integrations: ChitthiConfig | RazorpayConfig | RazorpaySetup | WaBotConfig | EmailAccountConfig | ZoomConfig | GcsConfig | CanvaConfig | SongLicenceConfig;
+  media: MediaItem;
+  canvaDesigns: CanvaDesign;
   kycFiles: KycFile;
   recurring: RecurringGift;
   botMessages: BotMessage;
@@ -1046,6 +1246,9 @@ export type Collections = {
   plans: Plan;
   announcements: AdminAnnouncement;
   staff: StaffMember;
+  roles: CustomRole;
+  hubChannels: HubChannel;
+  hubPosts: HubPost;
   rooms: Room;
   checkins: Checkin;
   teams: Team;
@@ -1089,11 +1292,11 @@ export const KINDS = [
   'funds', 'donations', 'pledges', 'plans', 'announcements', 'staff', 'rooms', 'checkins', 'teams', 'assignments', 'blockouts',
   'songs', 'messages', 'templates', 'care', 'prayer', 'audit', 'otps', 'refreshTokens', 'attendanceHistory', 'meta',
   'forms', 'formResponses', 'resources', 'bookings', 'customFields', 'smartLists', 'workflows', 'workflowCards', 'live', 'headcounts',
-  'batches', 'groupPosts', 'groupResources', 'sermons', 'greetings', 'presentations', 'integrations', 'apiKeys',
+  'batches', 'groupPosts', 'groupResources', 'sermons', 'greetings', 'presentations', 'integrations', 'apiKeys', 'roles', 'hubChannels', 'hubPosts',
   'registers', 'zones', 'visits', 'accountHeads', 'expenses', 'kycFiles', 'recurring', 'botMessages', 'campaigns', 'envelopes', 'inKind', 'auctionLots', 'consentLog', 'dataRequests', 'parentPages', 'bulletins',
   'ssClasses', 'ssLessons', 'ssAttendance', 'ssExams', 'ssMarks',
   'missionaries', 'missionSupport', 'missionReports', 'missionPayouts',
-  'streams', 'streamViews', 'teamLogins', 'devices',
+  'streams', 'streamViews', 'teamLogins', 'devices', 'media', 'canvaDesigns',
 ] as const satisfies readonly Kind[];
 
 // ----- assisted Razorpay setup: Flockwise's team opens the church's Razorpay account and does its KYC -----
@@ -1165,7 +1368,7 @@ export type RecurringGift = {
 export type RecurringSummary = { active: number; monthly: number; failing: number; pending: number; currency: Currency };
 
 // ----- WhatsApp assistant: answers members and visitors on the church's WhatsApp number (through Chitthi) -----
-export type BotIntent = 'menu' | 'services' | 'events' | 'prayer_ask' | 'prayer' | 'give' | 'sermon' | 'new' | 'talk' | 'stop' | 'start' | 'unknown';
+export type BotIntent = 'menu' | 'services' | 'events' | 'prayer_ask' | 'prayer' | 'prayed' | 'chain_join' | 'chain_leave' | 'checkin_ok' | 'checkin_away' | 'checkin_call' | 'give' | 'sermon' | 'new' | 'talk' | 'stop' | 'start' | 'unknown';
 export type WaBotConfig = {
   id: 'waBot';
   enabled: boolean;
@@ -1758,3 +1961,71 @@ export type NetworkOverview = {
   giving: { currency: Currency; churches: number; months: { month: string; amount: number }[]; total: number };
 };
 export type NetworkSummary = { id: string; name: string; kind: NetworkKind; churches: number };
+
+// ---------- shared song database ----------
+
+/** Languages the song database is organised by (ISO 639-1). */
+export type SongLanguage = 'en' | 'hi' | 'te' | 'ta' | 'ml' | 'kn' | 'mr' | 'bn' | 'pa' | 'gu' | 'or' | 'ur';
+export const SONG_LANGUAGES: { id: SongLanguage; label: string }[] = [
+  { id: 'en', label: 'English' }, { id: 'hi', label: 'Hindi' }, { id: 'te', label: 'Telugu' }, { id: 'ta', label: 'Tamil' }, { id: 'ml', label: 'Malayalam' }, { id: 'kn', label: 'Kannada' },
+  { id: 'mr', label: 'Marathi' }, { id: 'bn', label: 'Bengali' }, { id: 'pa', label: 'Punjabi' }, { id: 'gu', label: 'Gujarati' }, { id: 'or', label: 'Odia' }, { id: 'ur', label: 'Urdu' },
+];
+/**
+ * A song in the shared Flockwise song database. Public-domain songs carry their words; copyrighted
+ * songs carry credits only, and their words come from a licensed lyrics service when one is set up.
+ */
+export type CatalogSong = {
+  id: string;
+  title: string;
+  /** Other titles people search by: a first line, an English or transliterated title. */
+  aka?: string[];
+  language: SongLanguage;
+  /** Who wrote (or translated) the words, as credited. */
+  writers: string;
+  /** Who wrote the music. */
+  music?: string;
+  /** Year written or first published. */
+  year?: number;
+  rights: 'public-domain' | 'copyrighted';
+  /** Copyright line to print with the words. */
+  copyright: string;
+  /** CCLI song number, for reporting. */
+  ccli?: string;
+  defaultKey: string;
+  bpm: number | null;
+  /** Hymn tune name, e.g. NEW BRITAIN. */
+  tune?: string;
+  /** Themes and seasons: Grace, Easter, Christmas, Communion... */
+  themes: string[];
+  lyrics?: string;
+  chordChart?: string;
+  arrangement?: string[];
+  /** Where the words came from, e.g. "Open Hymnal Project" or a hymnbook and edition. */
+  source?: string;
+  links?: { name: string; url: string }[];
+};
+/** A row in the database list: no words, plus whether this church already has the song. */
+export type CatalogSongRow = Omit<CatalogSong, 'lyrics' | 'chordChart'> & { hasLyrics: boolean; hasChords: boolean; inLibrary: string | null; licensedAvailable: boolean };
+export type CatalogSongDetail = CatalogSong & { inLibrary: string | null; licensedAvailable: boolean };
+export type CatalogList = { songs: CatalogSongRow[]; total: number; languages: { id: SongLanguage; label: string; songs: number }[] };
+
+/** The church's song licences: CCLI numbers for reports and projected credits. */
+export type SongLicenceConfig = {
+  id: 'songLicence';
+  /** CCLI Church Copyright Licence number. */
+  ccliLicence: string;
+  /** CCLI Streaming Licence number, for online services. */
+  streamingLicence: string;
+  /** Other licence holders, e.g. an Indian publisher or OneLicense. */
+  otherLicences: string;
+  updatedAt: string;
+};
+/** A licensed lyrics service Flockwise has an agreement with (SongSelect, a publisher, a label). */
+export type LyricsFeedInfo = { id: string; name: string; /** 'ccli': asked only about songs with a CCLI number. */ covers: 'all' | 'ccli' };
+export type SongLicenceStatus = {
+  licence: SongLicenceConfig | null;
+  /** Licensed lyrics services this server is connected to. */
+  feeds: LyricsFeedInfo[];
+};
+/** Words for a copyrighted song from a licensed lyrics service. */
+export type LicensedLyrics = { lyrics: string; chordChart?: string; copyright?: string; defaultKey?: string; feedId: string; feedName: string };

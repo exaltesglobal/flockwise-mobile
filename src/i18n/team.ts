@@ -3,6 +3,38 @@
 import type { LanguageCode } from '@/api/types';
 
 export const teamEn = {
+  tabTeam: 'Team',
+  tabTasks: 'Tasks',
+  notices: 'Notices',
+  noNotices: 'No notices right now.',
+  threads: 'Chats',
+  newThread: 'New chat',
+  threadName: 'Chat name, e.g. Sunday setup',
+  pickPeople: 'Who is in it?',
+  startThread: 'Start chat',
+  noMessagesYet: 'No messages yet. Say hello!',
+  messagePlaceholder: 'Write a message',
+  send: 'Send',
+  kindMessage: 'Message',
+  kindNotice: 'Notice',
+  kindTask: 'Task',
+  noticeHint: 'Notices are pinned and everyone on the team is told. Only team leaders can post them; otherwise it is sent as a message.',
+  assignTo: 'Assign to',
+  dueDate: 'Due date (YYYY-MM-DD, optional)',
+  pinned: 'Pinned',
+  loadOlder: 'Show older messages',
+  yesterday: 'Yesterday',
+  taskFor: 'Task for {name}',
+  due: 'Due {date}',
+  overdue: 'Overdue',
+  openTasks: 'To do',
+  doneTasks: 'Done',
+  noTasks: 'No tasks for you. Tasks given to you in team chats show up here.',
+  markDone: 'Mark done',
+  markNotDone: 'Mark not done',
+  doneBy: 'Done by {name}',
+  inThread: 'In {name}',
+  teamMates: '{n} people',
   chooseTeam: 'Choose your team',
   planSong: 'Song',
   planReading: 'Reading',
@@ -61,6 +93,38 @@ export const teamEn = {
 export type TeamStrings = typeof teamEn;
 
 const hi: Partial<TeamStrings> = {
+  tabTeam: 'टीम',
+  tabTasks: 'काम',
+  notices: 'सूचनाएं',
+  noNotices: 'अभी कोई सूचना नहीं है।',
+  threads: 'चैट',
+  newThread: 'नई चैट',
+  threadName: 'चैट का नाम, जैसे रविवार की तैयारी',
+  pickPeople: 'इसमें कौन है?',
+  startThread: 'चैट शुरू करें',
+  noMessagesYet: 'अभी कोई संदेश नहीं। नमस्ते कहें!',
+  messagePlaceholder: 'संदेश लिखें',
+  send: 'भेजें',
+  kindMessage: 'संदेश',
+  kindNotice: 'सूचना',
+  kindTask: 'काम',
+  noticeHint: 'सूचनाएं ऊपर पिन रहती हैं और पूरी टीम को बताया जाता है। सिर्फ़ टीम लीडर इन्हें डाल सकते हैं; वरना यह संदेश की तरह जाएगा।',
+  assignTo: 'किसे दें',
+  dueDate: 'आख़िरी तारीख़ (YYYY-MM-DD, वैकल्पिक)',
+  pinned: 'पिन किया गया',
+  loadOlder: 'पुराने संदेश दिखाएं',
+  yesterday: 'कल',
+  taskFor: '{name} के लिए काम',
+  due: '{date} तक',
+  overdue: 'देर हो गई',
+  openTasks: 'करना है',
+  doneTasks: 'हो गया',
+  noTasks: 'आपके लिए कोई काम नहीं है। टीम चैट में दिए गए काम यहाँ दिखेंगे।',
+  markDone: 'हो गया',
+  markNotDone: 'वापस खोलें',
+  doneBy: '{name} ने पूरा किया',
+  inThread: '{name} में',
+  teamMates: '{n} लोग',
   chooseTeam: 'अपनी टीम चुनें',
   planSong: 'गीत',
   planReading: 'पाठ',
@@ -115,6 +179,8 @@ const hi: Partial<TeamStrings> = {
 };
 
 const ta: Partial<TeamStrings> = {
+  tabTeam: 'குழு',
+  tabTasks: 'பணிகள்',
   chooseTeam: 'உங்கள் குழுவைத் தேர்ந்தெடுங்கள்',
   planSong: 'பாடல்',
   planReading: 'வாசிப்பு',
@@ -169,6 +235,8 @@ const ta: Partial<TeamStrings> = {
 };
 
 const te: Partial<TeamStrings> = {
+  tabTeam: 'టీమ్',
+  tabTasks: 'పనులు',
   chooseTeam: 'మీ బృందాన్ని ఎంచుకోండి',
   planSong: 'పాట',
   planReading: 'పఠనం',
@@ -223,6 +291,8 @@ const te: Partial<TeamStrings> = {
 };
 
 const ml: Partial<TeamStrings> = {
+  tabTeam: 'ടീം',
+  tabTasks: 'ജോലികൾ',
   chooseTeam: 'നിങ്ങളുടെ ടീം തിരഞ്ഞെടുക്കുക',
   planSong: 'ഗാനം',
   planReading: 'വായന',
@@ -277,6 +347,8 @@ const ml: Partial<TeamStrings> = {
 };
 
 const kn: Partial<TeamStrings> = {
+  tabTeam: 'ತಂಡ',
+  tabTasks: 'ಕೆಲಸಗಳು',
   chooseTeam: 'ನಿಮ್ಮ ತಂಡವನ್ನು ಆರಿಸಿ',
   planSong: 'ಹಾಡು',
   planReading: 'ವಾಚನ',

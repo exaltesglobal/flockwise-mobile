@@ -66,3 +66,19 @@ Only the signed-in person's own rows, for the team they signed in for.
 
 `plan` (the order of service) is only sent for accepted assignments. Away dates (blockouts) apply to
 every team the person is on.
+
+## Team hub (notices, chats, tasks)
+
+Full contract: flockwise-api `docs/API-ADMIN.md`, "Team hub: notices, threads and tasks". The app uses:
+
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| GET | `/team/:teamId/notices` | | `HubPost[]` |
+| GET | `/team/:teamId/threads` | | `HubChannelView[]` (team channel first) |
+| POST | `/team/:teamId/threads` | `{ name, memberKeys }` | `HubChannelView` |
+| GET | `/team/:teamId/threads/:id/messages?cursor=` | | `HubChannelDetail` (newest first, 50 a page) |
+| POST | `/team/:teamId/threads/:id/messages` | `{ kind?, text, task? }` | `HubPost` |
+| GET | `/me/tasks` | | `MyTask[]` |
+| PATCH | `/me/tasks/:id` | `{ done }` | the task |
+
+Push links: `/app/team/<teamId>/threads/<id>` opens that chat, `/app/tasks/<id>` opens Tasks.

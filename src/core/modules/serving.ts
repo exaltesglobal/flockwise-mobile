@@ -1,7 +1,7 @@
 // Volunteer teams and rosters, and service planning (order of service + song library).
 import { ApiError } from '../errors.js';
 import type { Ctx, Router } from '../engine.js';
-import type { Assignment, AvailablePerson, Collections, MyServing, Plan, PlanItem, Schedule, ScheduleOverview, ServiceDetail, ServiceSummary, SongAttachment, SongView, Team, TeamView } from '../types.js';
+import type { SongColours, Assignment, AvailablePerson, Collections, MyServing, Plan, PlanItem, Schedule, ScheduleOverview, ServiceDetail, ServiceSummary, SongAttachment, SongView, Team, TeamView } from '../types.js';
 import { bySoonest, dateOnly, DAY, eventView, find, fullName, memberEvent, pick, requireFields, settings, upcoming } from '../util.js';
 import { sendDirect } from './comms.js';
 import { notify } from './notify.js';
@@ -194,7 +194,7 @@ export function registerServing(r: Router) {
   });
 
   // ----- admin: teams -----
-  r.get('/admin/volunteers/teams', { perm: ['volunteers', 'services'] }, (ctx) => ctx.db.all('teams').sort((x, y) => x.name.localeCompare(y.name)).map((t) => teamView(ctx, t)));
+  r.get('/admin/volunteers/teams', { perm: ['volunteers', 'services'] }, (ctx) => ctx.db.all('teams').filter((t) => !ctx.scope || ctx.scope.kind !== 'team' || ctx.scope.ids.includes(t.id)).sort((x, y) => x.name.localeCompare(y.name)).map((t) => teamView(ctx, t)));
   r.post('/admin/volunteers/teams', { perm: 'volunteers' }, (ctx) => {
     requireFields(ctx.body, ['name']);
     const positions = (Array.isArray(ctx.body.positions) ? ctx.body.positions : [{ name: 'Member', needed: 1 }]).map((p: { id?: string; name: string; needed?: number }) => ({ id: p.id || ctx.id('pos'), name: String(p.name), needed: Math.max(0, Number(p.needed ?? 1)) }));
@@ -351,18 +351,29 @@ export function registerServing(r: Router) {
   });
   r.post('/admin/songs', { perm: 'services' }, (ctx) => {
     requireFields(ctx.body, ['title']);
-    const s = ctx.db.put('songs', { id: ctx.id('sg'), title: String(ctx.body.title), author: String(ctx.body.author ?? ''), defaultKey: String(ctx.body.defaultKey ?? ''), bpm: ctx.body.bpm ? Number(ctx.body.bpm) : null, ccli: String(ctx.body.ccli ?? ''), tags: Array.isArray(ctx.body.tags) ? ctx.body.tags.map(String) : [], lyrics: String(ctx.body.lyrics ?? ''), chordChart: String(ctx.body.chordChart ?? ''), lyricsAlt: String(ctx.body.lyricsAlt ?? ''), arrangement: cleanArrangement(ctx.body.arrangement), attachments: cleanAttachments(ctx, ctx.body.attachments) });
+    const s = ctx.db.put('songs', { id: ctx.id('sg'), title: String(ctx.body.title), author: String(ctx.body.author ?? ''), defaultKey: String(ctx.body.defaultKey ?? ''), bpm: ctx.body.bpm ? Number(ctx.body.bpm) : null, ccli: String(ctx.body.ccli ?? ''), tags: Array.isArray(ctx.body.tags) ? ctx.body.tags.map(String) : [], lyrics: String(ctx.body.lyrics ?? ''), chordChart: String(ctx.body.chordChart ?? ''), lyricsAlt: String(ctx.body.lyricsAlt ?? ''), copyright: String(ctx.body.copyright ?? '').slice(0, 300), arrangement: cleanArrangement(ctx.body.arrangement), attachments: cleanAttachments(ctx, ctx.body.attachments), colours: cleanColours(ctx.body.colours) });
     ctx.audit('created', 'song', s.id, `Added song ${s.title}`);
     return s;
   });
   r.patch('/admin/songs/:id', { perm: 'services' }, (ctx) => {
     const s = find(ctx, 'songs', ctx.params[0], 'Song');
-    return ctx.db.put('songs', { ...s, ...pick(ctx.body, ['title', 'author', 'defaultKey', 'bpm', 'ccli', 'tags', 'lyrics', 'chordChart', 'lyricsAlt']), ...(ctx.body.arrangement !== undefined ? { arrangement: cleanArrangement(ctx.body.arrangement) } : {}), ...(ctx.body.attachments !== undefined ? { attachments: cleanAttachments(ctx, ctx.body.attachments) } : {}) });
+    return ctx.db.put('songs', { ...s, ...pick(ctx.body, ['title', 'author', 'defaultKey', 'bpm', 'ccli', 'tags', 'lyrics', 'chordChart', 'lyricsAlt', 'copyright']), ...(ctx.body.arrangement !== undefined ? { arrangement: cleanArrangement(ctx.body.arrangement) } : {}), ...(ctx.body.attachments !== undefined ? { attachments: cleanAttachments(ctx, ctx.body.attachments) } : {}), ...(ctx.body.colours !== undefined ? { colours: cleanColours(ctx.body.colours) } : {}) });
   });
   r.del('/admin/songs/:id', { perm: 'services' }, (ctx) => {
     ctx.db.del('songs', ctx.params[0]);
     return undefined;
   });
+}
+
+/** Only #rrggbb colours for the four chart parts; anything else is dropped. */
+function cleanColours(raw: unknown): SongColours {
+  const out: SongColours = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const k of ['background', 'lyrics', 'chords', 'headings'] as const) {
+    const v = String((raw as Record<string, unknown>)[k] ?? '').trim();
+    if (/^#[0-9a-f]{6}$/i.test(v)) out[k] = v.toLowerCase();
+  }
+  return out;
 }
 
 /** Links to charts, lyrics sheets and recordings (Google Drive, Dropbox, YouTube...). */

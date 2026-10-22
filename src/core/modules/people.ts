@@ -4,6 +4,12 @@ import type { Db } from '../db.js';
 import type { Ctx, Router } from '../engine.js';
 import { checkLimit } from '../plans.js';
 import type { Collections, Consent, DirectoryEntry, ImportResult, PersonInput, PersonTimeline } from '../types.js';
+
+/** A scoped login (zone, group or team leader) only opens people in its scope. */
+export function inScope<T extends { id: string }>(ctx: Ctx, p: T): T {
+  if (!ctx.inScope(p.id)) throw new ApiError(403, 'forbidden', 'This person is outside the zones, groups or teams you lead.');
+  return p;
+}
 import {
   age,
   dateOnly,
@@ -37,7 +43,7 @@ function countExisting(ctx: Ctx, rows: Record<string, unknown>[]) {
 
 const EDITABLE: (keyof PersonInput)[] = [
   'firstName', 'lastName', 'phone', 'email', 'gender', 'birthDate', 'status', 'householdName', 'address', 'language', 'tags', 'notes',
-  'campusId', 'baptismDate', 'anniversary', 'allergies', 'medicalNotes', 'consent', 'zoneId',
+  'campusId', 'baptismDate', 'anniversary', 'allergies', 'medicalNotes', 'consent', 'zoneId', 'prayerChain',
 ];
 
 function cleanInput(body: Record<string, unknown>) {
@@ -172,16 +178,18 @@ export function registerPeople(r: Router) {
   });
   r.get('/me/preferences', {}, (ctx) => {
     const p = find(ctx, 'people', ctx.me(), 'Profile');
-    return { consent: p.consent, checkinCode: p.checkinCode, campusId: p.campusId };
+    return { consent: p.consent, checkinCode: p.checkinCode, campusId: p.campusId, prayerChain: !!p.prayerChain };
   });
   r.patch('/me/preferences', {}, (ctx) => {
     const p = find(ctx, 'people', ctx.me(), 'Profile');
     const consent: Consent = { ...p.consent };
     for (const k of ['email', 'sms', 'whatsapp', 'directory'] as const) if (typeof ctx.body.consent?.[k] === 'boolean') consent[k] = ctx.body.consent[k];
     const campusId = ctx.body.campusId !== undefined && (ctx.body.campusId === null || ctx.db.get('campuses', ctx.body.campusId)) ? ctx.body.campusId : p.campusId;
-    const next = ctx.db.put('people', { ...p, consent, campusId });
+    const prayerChain = typeof ctx.body.prayerChain === 'boolean' ? ctx.body.prayerChain : !!p.prayerChain;
+    const next = ctx.db.put('people', { ...p, consent, campusId, prayerChain });
     logConsent(ctx, p.id, p.consent, next.consent, 'member');
-    return { consent: next.consent, checkinCode: next.checkinCode, campusId: next.campusId };
+    if (prayerChain !== !!p.prayerChain) ctx.audit(prayerChain ? 'joined' : 'left', 'person', p.id, `${fullName(p)} ${prayerChain ? 'joined' : 'left'} the prayer chain`);
+    return { consent: next.consent, checkinCode: next.checkinCode, campusId: next.campusId, prayerChain };
   });
   r.get('/campuses', {}, (ctx) => ctx.db.all('campuses'));
   r.get('/directory', {}, (ctx) => {
@@ -205,6 +213,7 @@ export function registerPeople(r: Router) {
     const tag = ctx.query.tag;
     const campusId = ctx.query.campusId;
     const list = searchPeople(ctx, String(ctx.query.q ?? ''))
+      .filter((p) => ctx.inScope(p.id))
       .filter((p) => !status || p.status === status)
       .filter((p) => !tag || p.tags.includes(tag))
       .filter((p) => !campusId || p.campusId === campusId)
@@ -235,9 +244,10 @@ export function registerPeople(r: Router) {
     ctx.audit('imported', 'person', null, `Imported people from ${ctx.body.source ?? 'a file'}: ${result.created} added, ${result.updated} updated`);
     return result;
   });
-  r.get('/admin/people/:id', { perm: 'people.view' }, (ctx) => personView(ctx, find(ctx, 'people', ctx.params[0], 'Person')));
+  r.get('/admin/people/:id', { perm: 'people.view' }, (ctx) => personView(ctx, inScope(ctx, find(ctx, 'people', ctx.params[0], 'Person'))));
   r.get('/admin/people/:id/timeline', { perm: 'people.view' }, (ctx) => timeline(ctx, find(ctx, 'people', ctx.params[0], 'Person')));
   r.patch('/admin/people/:id', { perm: 'people.edit' }, (ctx) => {
+    inScope(ctx, find(ctx, 'people', ctx.params[0], 'Person'));
     const p = find(ctx, 'people', ctx.params[0], 'Person');
     const next = ctx.db.put('people', { ...p, ...cleanInput(ctx.body), ...withCustom(ctx, ctx.body, p) });
     if (ctx.body.consent) logConsent(ctx, p.id, p.consent, next.consent, 'staff');
