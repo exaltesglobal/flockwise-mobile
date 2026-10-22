@@ -24,7 +24,8 @@ export const Me = {
   update: (patch: Partial<Pick<Member, 'firstName' | 'lastName' | 'phone' | 'language'>>) => api.patch<Member>('/me', patch),
   preferences: () => api.get<MemberPreferences>('/me/preferences'),
   updatePreferences: (patch: { consent?: Partial<Consent> }) => api.patch<MemberPreferences>('/me/preferences', patch),
-  registerDevice: (token: string, platform: 'ios' | 'android') => api.post<void>('/me/devices', { token, platform }),
+  registerDevice: (token: string, platform: 'ios' | 'android') => api.post<void>('/me/devices', { token, platform, app: 'team' }),
+  forgetDevice: (token: string) => api.del<void>(`/me/devices?token=${encodeURIComponent(token)}`),
 };
 
 export const Serving = {

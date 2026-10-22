@@ -45,7 +45,10 @@ Errors: `invalid_credentials` (401, same for an unknown email and a wrong passwo
 | PATCH | `/me` | `{ firstName?, lastName?, phone?, language? }` | `Member` |
 | GET | `/me/preferences` | | `{ consent: { email, sms, whatsapp, directory }, ... }` |
 | PATCH | `/me/preferences` | `{ consent?: Partial<Consent> }` | same |
-| POST | `/me/devices` | `{ token, platform: "ios"\|"android" }` | `204`. Expo push token for rota reminders. |
+| POST | `/me/devices` | `{ token, platform: "ios"\|"android", app: "team" }` | `204`. Expo push token. Sent after sign-in. |
+| DELETE | `/me/devices?token=` | | `204`. Sent on sign-out, so the phone stops getting pushes. |
+
+Pushes carry `data: { kind, link? }`. A `link` of `/app/serving/<id>` opens that assignment; anything else opens the schedule. Pushes need `EAS_PROJECT_ID` set at build time.
 
 `language` is one of `en, hi, ta, te, ml, kn`.
 

@@ -5,6 +5,7 @@ import { Auth } from '@/api/endpoints';
 import type { Member, TeamSession } from '@/api/types';
 
 import { loadRuntimeConfig } from './config';
+import { forgetPushDevice } from './push';
 import { storage } from './storage';
 
 const SESSION_KEY = 'fw.teamSession';
@@ -37,6 +38,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     const current = sessionRef.current;
+    if (current) await forgetPushDevice();
     await persist(null);
     if (current) Auth.signOut(current.refreshToken).catch(() => {});
   }, [persist]);
