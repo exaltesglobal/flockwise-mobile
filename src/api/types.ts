@@ -35,3 +35,7 @@ export type {
 } from '@/core/types';
 
 export type CheckinCode = { code: string; qr: string; name: string };
+
+/** A church on the Flockwise server, looked up by its address. */
+export type ChurchPublic = { id: string; slug: string; name: string; city: string | null; logoUrl: string | null; isDefault: boolean };
+export type ChurchFound = { slug: string; name: string; city: string | null };

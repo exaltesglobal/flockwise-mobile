@@ -1,10 +1,12 @@
-import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, TextInput, View } from 'react-native';
+import { router } from 'expo-router';
+import { useState, useSyncExternalStore } from 'react';
+import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { Auth } from '@/api/endpoints';
 import { ApiError } from '@/api/errors';
 import { Button, Screen, T } from '@/components/ui';
 import { useT } from '@/i18n';
+import { getChurch, onChurchChange } from '@/lib/church';
 import { isUsingMocks } from '@/lib/config';
 import { useSession } from '@/lib/session';
 import { Fonts, Radius, Space, usePalette } from '@/theme';
@@ -13,6 +15,7 @@ export default function SignIn() {
   const c = usePalette();
   const { t } = useT();
   const { signIn } = useSession();
+  const church = useSyncExternalStore(onChurchChange, getChurch);
   const [email, setEmail] = useState('');
   const [requestId, setRequestId] = useState<string | null>(null);
   const [code, setCode] = useState('');
@@ -53,6 +56,26 @@ export default function SignIn() {
           <T variant="title">{t('signInTitle')}</T>
           <T variant="muted">{requestId ? t('codeSentTo', { target: email }) : t('signInBody')}</T>
         </View>
+
+        {!requestId && (
+          <Pressable
+            onPress={() => router.push('/church')}
+            accessibilityRole="button"
+            style={[styles.church, { borderColor: c.border, backgroundColor: c.card }]}
+          >
+            <View style={{ flex: 1 }}>
+              {church ? (
+                <>
+                  <T style={{ fontFamily: Fonts.bodyBold }}>{church.name}</T>
+                  {church.city ? <T variant="caption">{church.city}</T> : null}
+                </>
+              ) : (
+                <T variant="muted">{t('churchPick')}</T>
+              )}
+            </View>
+            <T style={{ color: c.primary, fontFamily: Fonts.bodyBold }}>{church ? t('churchChange') : '›'}</T>
+          </Pressable>
+        )}
 
         {!requestId ? (
           <>
@@ -105,5 +128,6 @@ export default function SignIn() {
 
 const styles = StyleSheet.create({
   input: { borderWidth: 1, borderRadius: Radius.md, paddingHorizontal: Space.md, height: 54, fontSize: 17, fontFamily: Fonts.body },
+  church: { flexDirection: 'row', alignItems: 'center', gap: Space.md, borderWidth: 1, borderRadius: Radius.md, paddingHorizontal: Space.md, paddingVertical: Space.sm + 4 },
   code: { fontFamily: Fonts.display, fontSize: 26, letterSpacing: 10, textAlign: 'center' },
 });

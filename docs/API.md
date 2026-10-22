@@ -11,7 +11,8 @@ Church office endpoints are in [API-ADMIN.md](API-ADMIN.md).
 - **Base URL**: `https://api.flockwise.church/v1`. Apps only need this one setting (`VITE_API_URL`, `EXPO_PUBLIC_API_URL`).
 - **Format**: JSON in and out.
 - **Auth**: `Authorization: Bearer <accessToken>` on everything except `/auth/*`. Access tokens last 1 hour; refresh tokens rotate on every use.
-- **Tenancy**: the church comes from the token. Apps never send a church id.
+- **Tenancy**: one server hosts many churches. Before sign-in the app sends `X-Church: <slug>` (the church address members pick, as in `app.flockwise.church/c/<slug>`); after sign-in the church also comes from the token. With no header the server's own church is used.
+- **Church lookup** (no sign-in): `GET /churches/:slug` → `{ id, slug, name, city, logoUrl, isDefault }` or `404 church_not_found`; `POST /churches/find { email }` → `{ sent: true }` and the server emails the matching church addresses.
 - **Money**: integers in minor units (paise) plus ISO 4217 `currency`.
 - **Time**: ISO 8601 UTC. Dates without time (`from`, `to`, `endDate`) are `YYYY-MM-DD`.
 - **Lists**: `{ "data": [...], "nextCursor": "20" | null }`. Pass `?cursor=` for the next page.

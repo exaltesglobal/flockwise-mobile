@@ -4,6 +4,7 @@ import { StyleSheet, TextInput } from 'react-native';
 
 import { Button, Screen, T } from '@/components/ui';
 import { useT } from '@/i18n';
+import { setChurch } from '@/lib/church';
 import { BuildConfig, getApiUrl, isUsingMocks, setApiUrlOverride } from '@/lib/config';
 import { useSession } from '@/lib/session';
 import { Fonts, Radius, Space, usePalette } from '@/theme';
@@ -20,6 +21,7 @@ export default function ServerSettings() {
 
   async function apply(next: string | null) {
     await setApiUrlOverride(next);
+    await setChurch(null); // church addresses belong to a server
     router.back();
     await signOut();
   }

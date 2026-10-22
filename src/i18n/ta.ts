@@ -146,4 +146,15 @@ export const ta: Strings = {
   consentDirectory: 'உறுப்பினர் அடைவில் என்னைக் காட்டு',
   campus: 'வளாகம்',
   mobile: 'கைபேசி எண்',
+
+  churchTitle: 'உங்கள் சபையைக் கண்டறியுங்கள்',
+  churchBody: 'உங்கள் சபையின் Flockwise முகவரியை உள்ளிடுங்கள். சபை அலுவலகம் இதை உங்களுக்குச் சொல்லும்.',
+  churchAddress: 'சபை முகவரி, எ.கா. grace-hyderabad',
+  churchContinue: 'தொடரவும்',
+  churchFindByEmail: 'மின்னஞ்சல் மூலம் என் சபையைக் கண்டறி',
+  churchFindBody: 'உங்கள் சபையிடம் உள்ள மின்னஞ்சல் முகவரியை உள்ளிடுங்கள்.',
+  churchFindSent: 'Flockwise-இல் ஏதேனும் சபையிடம் இந்த மின்னஞ்சல் இருந்தால், அதன் முகவரியை உங்களுக்கு மின்னஞ்சல் செய்துள்ளோம்.',
+  churchChange: 'சபையை மாற்று',
+  churchPick: 'உங்கள் சபையைத் தேர்ந்தெடுங்கள்',
+  churchUseAddress: 'பதிலாக சபை முகவரியை உள்ளிடுங்கள்',
 };

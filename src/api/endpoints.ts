@@ -5,6 +5,8 @@ import type {
   Blockout,
   Campus,
   CheckinCode,
+  ChurchFound,
+  ChurchPublic,
   ChurchEvent,
   Consent,
   DirectoryEntry,
@@ -45,6 +47,11 @@ export const Me = {
   updatePreferences: (patch: { consent?: Partial<Consent>; campusId?: string | null }) => api.patch<MemberPreferences>('/me/preferences', patch),
   checkinCode: () => api.get<CheckinCode>('/me/checkin-code'),
   registerDevice: (token: string, platform: 'ios' | 'android') => api.post<void>('/me/devices', { token, platform }),
+};
+
+export const Churches = {
+  bySlug: (slug: string) => api.get<ChurchPublic>(`/churches/${encodeURIComponent(slug)}`),
+  find: (email: string) => api.post<{ sent: boolean; churches?: ChurchFound[] }>('/churches/find', { email }),
 };
 
 export const Church = {

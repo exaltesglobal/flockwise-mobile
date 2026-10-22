@@ -4,6 +4,7 @@ import { configureAuth } from '@/api/client';
 import { Auth } from '@/api/endpoints';
 import type { Member, Session } from '@/api/types';
 
+import { loadChurch } from './church';
 import { loadRuntimeConfig } from './config';
 import { storage } from './storage';
 
@@ -57,7 +58,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     });
 
     (async () => {
-      await loadRuntimeConfig();
+      await Promise.all([loadRuntimeConfig(), loadChurch()]);
       const raw = await storage.get(SESSION_KEY);
       const saved = raw ? (JSON.parse(raw) as Session) : null;
       sessionRef.current = saved;
