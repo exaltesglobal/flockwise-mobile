@@ -3,6 +3,7 @@
 import type { LanguageCode } from '@/api/types';
 
 export const teamEn = {
+  chooseTeam: 'Choose your team',
   planSong: 'Song',
   planReading: 'Reading',
   planSermon: 'Message',
@@ -60,6 +61,7 @@ export const teamEn = {
 export type TeamStrings = typeof teamEn;
 
 const hi: Partial<TeamStrings> = {
+  chooseTeam: 'अपनी टीम चुनें',
   planSong: 'गीत',
   planReading: 'पाठ',
   planSermon: 'संदेश',
@@ -113,6 +115,7 @@ const hi: Partial<TeamStrings> = {
 };
 
 const ta: Partial<TeamStrings> = {
+  chooseTeam: 'உங்கள் குழுவைத் தேர்ந்தெடுங்கள்',
   planSong: 'பாடல்',
   planReading: 'வாசிப்பு',
   planSermon: 'செய்தி',
@@ -166,6 +169,7 @@ const ta: Partial<TeamStrings> = {
 };
 
 const te: Partial<TeamStrings> = {
+  chooseTeam: 'మీ బృందాన్ని ఎంచుకోండి',
   planSong: 'పాట',
   planReading: 'పఠనం',
   planSermon: 'సందేశం',
@@ -219,6 +223,7 @@ const te: Partial<TeamStrings> = {
 };
 
 const ml: Partial<TeamStrings> = {
+  chooseTeam: 'നിങ്ങളുടെ ടീം തിരഞ്ഞെടുക്കുക',
   planSong: 'ഗാനം',
   planReading: 'വായന',
   planSermon: 'സന്ദേശം',
@@ -272,6 +277,7 @@ const ml: Partial<TeamStrings> = {
 };
 
 const kn: Partial<TeamStrings> = {
+  chooseTeam: 'ನಿಮ್ಮ ತಂಡವನ್ನು ಆರಿಸಿ',
   planSong: 'ಹಾಡು',
   planReading: 'ವಾಚನ',
   planSermon: 'ಸಂದೇಶ',
