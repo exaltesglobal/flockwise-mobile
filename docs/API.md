@@ -36,7 +36,7 @@ in `src/api/types.ts`.
 
 `Session` = `{ accessToken, refreshToken, expiresAt, member: Member, church: Church }`.
 
-Sign-in codes are sent **by email only** (decided 2026-10-22; no SMS or WhatsApp OTP). Only people already in the church's member list can sign in. An unknown email should get a friendly `404 not_member` error telling them to contact the church office. Rate-limit OTP requests per email and per IP, and expire codes after about 10 minutes.
+Sign-in codes are sent **by email only** (decided 2026-10-22; no SMS or WhatsApp OTP). An email not yet in the church's list is created as a visitor, so newcomers can sign up from the app. A value that isn't an email gets `422 email_required`. Rate-limit OTP requests per email and per IP, and expire codes after about 10 minutes.
 
 ## Me
 
