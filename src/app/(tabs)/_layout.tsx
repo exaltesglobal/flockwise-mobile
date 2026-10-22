@@ -1,23 +1,25 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router/js-tabs';
-import type { ComponentProps } from 'react';
+import { useEffect, type ComponentProps } from 'react';
 
 import { useT, type StringKey } from '@/i18n';
+import { registerForPush, useNotificationTaps } from '@/lib/push';
 import { Fonts, usePalette } from '@/theme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
 const TABS: { name: string; label: StringKey; icon: IconName; iconActive: IconName }[] = [
-  { name: 'home', label: 'tabHome', icon: 'home-outline', iconActive: 'home' },
-  { name: 'events', label: 'tabEvents', icon: 'calendar-outline', iconActive: 'calendar' },
-  { name: 'give', label: 'tabGive', icon: 'heart-outline', iconActive: 'heart' },
-  { name: 'groups', label: 'tabGroups', icon: 'people-outline', iconActive: 'people' },
+  { name: 'schedule', label: 'tabSchedule', icon: 'calendar-outline', iconActive: 'calendar' },
+  { name: 'away', label: 'tabAway', icon: 'airplane-outline', iconActive: 'airplane' },
   { name: 'me', label: 'tabMe', icon: 'person-circle-outline', iconActive: 'person-circle' },
 ];
 
 export default function TabLayout() {
   const c = usePalette();
   const { t } = useT();
+  // The tabs only show once signed in with a final password, so this is the moment to ask for pushes.
+  useEffect(() => void registerForPush(), []);
+  useNotificationTaps(true);
   return (
     <Tabs
       screenOptions={{

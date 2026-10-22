@@ -1,9 +1,10 @@
 // Volunteer teams and rosters, and service planning (order of service + song library).
 import { ApiError } from '../errors.js';
 import type { Ctx, Router } from '../engine.js';
-import type { Assignment, AvailablePerson, Collections, MyServing, Plan, PlanItem, Schedule, ScheduleOverview, ServiceDetail, ServiceSummary, SongView, Team, TeamView } from '../types.js';
+import type { Assignment, AvailablePerson, Collections, MyServing, Plan, PlanItem, Schedule, ScheduleOverview, ServiceDetail, ServiceSummary, SongAttachment, SongView, Team, TeamView } from '../types.js';
 import { bySoonest, dateOnly, DAY, eventView, find, fullName, memberEvent, pick, requireFields, settings, upcoming } from '../util.js';
 import { sendDirect } from './comms.js';
+import { notify } from './notify.js';
 
 const COLORS = ['#1F6B5C', '#F2A93B', '#3B82F6', '#A855F7', '#EF4444', '#14B8A6', '#F97316', '#64748B'];
 const PLAN_KINDS: PlanItem['kind'][] = ['song', 'reading', 'sermon', 'prayer', 'announcement', 'offering', 'video', 'other'];
@@ -87,8 +88,16 @@ function assign(ctx: Ctx, ev: Collections['events'], teamId: string, positionId:
   const c = conflict(ctx, ev, personId);
   if (c && !force) throw new ApiError(409, 'conflict', `${name(ctx, personId)} can't serve: ${c}.`);
   const existing = ctx.db.all('assignments').find((a) => a.eventId === ev.id && a.teamId === teamId && a.positionId === positionId && a.personId === personId);
-  if (existing) return ctx.db.put('assignments', { ...existing, status: 'pending', respondedAt: null });
-  return ctx.db.put('assignments', { id: ctx.id('as'), eventId: ev.id, teamId, positionId, personId, status: 'pending', createdAt: ctx.now.toISOString(), respondedAt: null, note: null });
+  const a = existing
+    ? ctx.db.put('assignments', { ...existing, status: 'pending', respondedAt: null })
+    : ctx.db.put('assignments', { id: ctx.id('as'), eventId: ev.id, teamId, positionId, personId, status: 'pending', createdAt: ctx.now.toISOString(), respondedAt: null, note: null });
+  const pos = t.positions.find((p) => p.id === positionId)?.name ?? '';
+  void notify(ctx, 'rota.assigned', { personIds: [personId], title: `You're on the rota: ${ev.title}`, body: `${t.name}${pos ? ` · ${pos}` : ''} at ${ev.title}, ${whenText(ctx, ev)}. Please accept or decline in the app.`, link: `/app/serving/${a.id}` });
+  return a;
+}
+
+function whenText(ctx: Ctx, ev: Collections['events']) {
+  return new Date(ev.startsAt).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: settings(ctx).timezone || 'Asia/Kolkata' });
 }
 
 /** Fills open positions with team members who are free, preferring those who served least recently. */
@@ -132,6 +141,8 @@ function cleanItems(ctx: Ctx, items: unknown): PlanItem[] {
       minutes: Math.max(0, Math.min(240, Number(raw.minutes) || 0)),
       notes: String(raw.notes ?? ''),
       person: String(raw.person ?? ''),
+      arrangement: Array.isArray(raw.arrangement) ? raw.arrangement.map(String).map((x) => x.trim()).filter(Boolean).slice(0, 40) : [],
+      text: String(raw.text ?? '').slice(0, 10_000),
     };
   });
 }
@@ -140,9 +151,11 @@ export function registerServing(r: Router) {
   // ----- member -----
   r.get('/me/serving', {}, (ctx): MyServing => {
     const me = ctx.me();
+    // The team app passes ?teamId= so a person sees one team's assignments at a time.
+    const teamId = ctx.query.teamId || null;
     const assignments = ctx.db
       .all('assignments')
-      .filter((a) => a.personId === me)
+      .filter((a) => a.personId === me && (!teamId || a.teamId === teamId))
       .map((a) => ({ a, ev: ctx.db.get('events', a.eventId), t: ctx.db.get('teams', a.teamId) }))
       .filter((x) => x.ev && x.t && upcoming(ctx, x.ev))
       .sort((x, y) => bySoonest(x.ev!, y.ev!))
@@ -155,7 +168,7 @@ export function registerServing(r: Router) {
       }));
     const teams = ctx.db
       .all('teams')
-      .filter((t) => t.members.some((m) => m.personId === me))
+      .filter((t) => t.members.some((m) => m.personId === me) && (!teamId || t.id === teamId))
       .map((t) => ({ id: t.id, name: t.name, positions: t.positions.filter((p) => t.members.find((m) => m.personId === me)!.positionIds.includes(p.id)).map((p) => p.name) }));
     const blockouts = ctx.db.all('blockouts').filter((b) => b.personId === me && b.to >= dateOnly(ctx.now)).sort((x, y) => x.from.localeCompare(y.from));
     return { assignments, teams, blockouts };
@@ -302,7 +315,11 @@ export function registerServing(r: Router) {
   });
   r.put('/admin/services/:eventId', { perm: 'services' }, (ctx) => {
     const ev = find(ctx, 'events', ctx.params[0], 'Event');
-    const plan = ctx.db.put('plans', { id: ev.id, eventId: ev.id, theme: String(ctx.body.theme ?? ''), notes: String(ctx.body.notes ?? ''), items: cleanItems(ctx, ctx.body.items), updatedAt: ctx.now.toISOString() });
+    const plan = ctx.db.put('plans', {
+      id: ev.id, eventId: ev.id, theme: String(ctx.body.theme ?? ''), notes: String(ctx.body.notes ?? ''), items: cleanItems(ctx, ctx.body.items), updatedAt: ctx.now.toISOString(),
+      rehearsalAt: ctx.body.rehearsalAt ? new Date(String(ctx.body.rehearsalAt)).toISOString() : null,
+      rehearsalNotes: String(ctx.body.rehearsalNotes ?? '').slice(0, 4000),
+    });
     ctx.audit('updated', 'plan', ev.id, `Updated the order of service for ${ev.title}`);
     return plan;
   });
@@ -334,16 +351,32 @@ export function registerServing(r: Router) {
   });
   r.post('/admin/songs', { perm: 'services' }, (ctx) => {
     requireFields(ctx.body, ['title']);
-    const s = ctx.db.put('songs', { id: ctx.id('sg'), title: String(ctx.body.title), author: String(ctx.body.author ?? ''), defaultKey: String(ctx.body.defaultKey ?? ''), bpm: ctx.body.bpm ? Number(ctx.body.bpm) : null, ccli: String(ctx.body.ccli ?? ''), tags: Array.isArray(ctx.body.tags) ? ctx.body.tags.map(String) : [], lyrics: String(ctx.body.lyrics ?? '') });
+    const s = ctx.db.put('songs', { id: ctx.id('sg'), title: String(ctx.body.title), author: String(ctx.body.author ?? ''), defaultKey: String(ctx.body.defaultKey ?? ''), bpm: ctx.body.bpm ? Number(ctx.body.bpm) : null, ccli: String(ctx.body.ccli ?? ''), tags: Array.isArray(ctx.body.tags) ? ctx.body.tags.map(String) : [], lyrics: String(ctx.body.lyrics ?? ''), chordChart: String(ctx.body.chordChart ?? ''), lyricsAlt: String(ctx.body.lyricsAlt ?? ''), arrangement: cleanArrangement(ctx.body.arrangement), attachments: cleanAttachments(ctx, ctx.body.attachments) });
     ctx.audit('created', 'song', s.id, `Added song ${s.title}`);
     return s;
   });
   r.patch('/admin/songs/:id', { perm: 'services' }, (ctx) => {
     const s = find(ctx, 'songs', ctx.params[0], 'Song');
-    return ctx.db.put('songs', { ...s, ...pick(ctx.body, ['title', 'author', 'defaultKey', 'bpm', 'ccli', 'tags', 'lyrics']) });
+    return ctx.db.put('songs', { ...s, ...pick(ctx.body, ['title', 'author', 'defaultKey', 'bpm', 'ccli', 'tags', 'lyrics', 'chordChart', 'lyricsAlt']), ...(ctx.body.arrangement !== undefined ? { arrangement: cleanArrangement(ctx.body.arrangement) } : {}), ...(ctx.body.attachments !== undefined ? { attachments: cleanAttachments(ctx, ctx.body.attachments) } : {}) });
   });
   r.del('/admin/songs/:id', { perm: 'services' }, (ctx) => {
     ctx.db.del('songs', ctx.params[0]);
     return undefined;
   });
+}
+
+/** Links to charts, lyrics sheets and recordings (Google Drive, Dropbox, YouTube...). */
+const cleanArrangement = (raw: unknown) => (Array.isArray(raw) ? raw.map(String).map((x) => x.trim()).filter(Boolean).slice(0, 40) : []);
+
+function cleanAttachments(ctx: Ctx, raw: unknown): SongAttachment[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .slice(0, 20)
+    .map((a: Record<string, unknown>) => ({
+      id: String(a.id || ctx.id('sa')),
+      name: String(a.name ?? '').trim().slice(0, 120) || 'Attachment',
+      url: String(a.url ?? '').trim(),
+      kind: (['chart', 'lyrics', 'audio', 'video', 'other'].includes(String(a.kind)) ? a.kind : 'other') as SongAttachment['kind'],
+    }))
+    .filter((a) => /^https?:\/\//.test(a.url));
 }

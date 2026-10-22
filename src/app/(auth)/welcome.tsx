@@ -13,8 +13,8 @@ export default function Welcome() {
     <SafeAreaView style={styles.root}>
       <View style={styles.hero}>
         <Image source={require('@/assets/brand/logo-horizontal-reverse.png')} style={styles.logo} contentFit="contain" />
-        <T style={styles.tagline}>{t('tagline')}</T>
-        <T style={styles.body}>{t('welcomeBody')}</T>
+        <T style={styles.tagline}>{t('teamTagline')}</T>
+        <T style={styles.body}>{t('teamWelcomeBody')}</T>
       </View>
       <Button title={t('getStarted')} variant="accent" onPress={() => router.push('/sign-in')} />
     </SafeAreaView>

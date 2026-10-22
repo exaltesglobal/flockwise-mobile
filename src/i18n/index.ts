@@ -6,6 +6,7 @@ import { hi } from './hi';
 import { kn } from './kn';
 import { ml } from './ml';
 import { ta } from './ta';
+import { teamEn, teamStrings, type TeamStrings } from './team';
 import { te } from './te';
 
 // Same strings as the web member portal (flockwise-web/src/i18n). Add a language: create
@@ -19,12 +20,15 @@ export const languages: Record<LanguageCode, { label: string; locale: string; st
   kn: { label: 'ಕನ್ನಡ', locale: 'kn-IN', strings: kn },
 };
 
-export type StringKey = keyof Strings;
+export type StringKey = keyof Strings | keyof TeamStrings;
 
 export function useT() {
   const { session } = useSession();
-  const lang = languages[session?.member.language ?? 'en'] ?? languages.en;
+  const code = session?.member.language && languages[session.member.language] ? session.member.language : 'en';
+  const lang = languages[code];
+  const all: Record<string, string | undefined> = { ...lang.strings, ...teamStrings[code] };
+  const fallback: Record<string, string> = { ...en, ...teamEn };
   const t = (key: StringKey, vars?: Record<string, string | number>) =>
-    (lang.strings[key] ?? en[key]).replace(/\{(\w+)\}/g, (_, k) => String(vars?.[k] ?? `{${k}}`));
+    (all[key] ?? fallback[key]).replace(/\{(\w+)\}/g, (_, k) => String(vars?.[k] ?? `{${k}}`));
   return { t, locale: lang.locale };
 }

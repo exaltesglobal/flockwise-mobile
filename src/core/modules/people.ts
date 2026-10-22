@@ -1,6 +1,8 @@
 // People, households, campuses, the member's own profile and the opt-in directory.
 import { ApiError } from '../errors.js';
+import type { Db } from '../db.js';
 import type { Ctx, Router } from '../engine.js';
+import { checkLimit } from '../plans.js';
 import type { Collections, Consent, DirectoryEntry, ImportResult, PersonInput, PersonTimeline } from '../types.js';
 import {
   age,
@@ -19,19 +21,37 @@ import {
   pick,
   requireFields,
 } from '../util.js';
+import { notify, pastorIds } from './notify.js';
+import { cleanCustom, triggerWorkflows } from './workflows.js';
+import { logConsent } from './privacy.js';
+
+/** People counted towards the plan: everyone except those marked inactive. */
+export const activePeople = (db: Db) => db.all('people').filter((p) => p.status !== 'inactive').length;
+
+/** How many import rows match someone already in the database (by email or phone). */
+function countExisting(ctx: Ctx, rows: Record<string, unknown>[]) {
+  const emails = new Set(ctx.db.all('people').map((p) => normEmail(p.email)).filter(Boolean));
+  const phones = new Set(ctx.db.all('people').map((p) => String(p.phone ?? '').replace(/\D/g, '').slice(-10)).filter((x) => x.length >= 8));
+  return rows.filter((r) => emails.has(normEmail(String(r.email ?? ''))) || phones.has(String(r.phone ?? '').replace(/\D/g, '').slice(-10))).length;
+}
 
 const EDITABLE: (keyof PersonInput)[] = [
   'firstName', 'lastName', 'phone', 'email', 'gender', 'birthDate', 'status', 'householdName', 'address', 'language', 'tags', 'notes',
-  'campusId', 'baptismDate', 'anniversary', 'allergies', 'medicalNotes', 'consent',
+  'campusId', 'baptismDate', 'anniversary', 'allergies', 'medicalNotes', 'consent', 'zoneId',
 ];
 
 function cleanInput(body: Record<string, unknown>) {
   const input = pick<PersonInput>(body, EDITABLE);
-  for (const k of ['phone', 'email', 'birthDate', 'householdName', 'address', 'notes', 'baptismDate', 'anniversary', 'allergies', 'medicalNotes'] as const)
+  for (const k of ['phone', 'email', 'birthDate', 'householdName', 'address', 'notes', 'baptismDate', 'anniversary', 'allergies', 'medicalNotes', 'zoneId'] as const)
     if (input[k] === '') input[k] = null;
   if (input.email) input.email = normEmail(input.email);
   if (input.birthDate && !/^\d{4}-\d{2}-\d{2}$/.test(input.birthDate)) throw new ApiError(422, 'invalid', 'Birth date should be a date.', { birthDate: 'Use YYYY-MM-DD' });
   return input;
+}
+
+/** Custom field values merge into what the person already has. */
+function withCustom(ctx: Ctx, body: Record<string, unknown>, existing?: Collections['people']) {
+  return body?.custom === undefined ? {} : { custom: { ...(existing?.custom ?? {}), ...cleanCustom(ctx, body.custom) } };
 }
 
 function matches(p: Collections['people'], q: string) {
@@ -89,7 +109,7 @@ function importPeople(ctx: Ctx, rows: PersonInput[], dedupeBy: 'phone' | 'email'
   return result;
 }
 
-function removePerson(ctx: Ctx, id: string) {
+export function removePerson(ctx: Ctx, id: string) {
   ctx.db.del('people', id);
   for (const kind of ['groupMembers', 'rsvps', 'joinRequests', 'blockouts', 'assignments', 'pledges'] as const)
     for (const r of ctx.db.all(kind)) if (('personId' in r && r.personId === id) || ('person' in r && r.person.id === id)) ctx.db.del(kind, r.id);
@@ -150,7 +170,6 @@ export function registerPeople(r: Router) {
     if (patch.email) patch.email = normEmail(patch.email);
     return memberProfile(ctx.db.put('people', { ...p, ...patch }));
   });
-  r.post('/me/devices', {}, () => undefined);
   r.get('/me/preferences', {}, (ctx) => {
     const p = find(ctx, 'people', ctx.me(), 'Profile');
     return { consent: p.consent, checkinCode: p.checkinCode, campusId: p.campusId };
@@ -161,6 +180,7 @@ export function registerPeople(r: Router) {
     for (const k of ['email', 'sms', 'whatsapp', 'directory'] as const) if (typeof ctx.body.consent?.[k] === 'boolean') consent[k] = ctx.body.consent[k];
     const campusId = ctx.body.campusId !== undefined && (ctx.body.campusId === null || ctx.db.get('campuses', ctx.body.campusId)) ? ctx.body.campusId : p.campusId;
     const next = ctx.db.put('people', { ...p, consent, campusId });
+    logConsent(ctx, p.id, p.consent, next.consent, 'member');
     return { consent: next.consent, checkinCode: next.checkinCode, campusId: next.campusId };
   });
   r.get('/campuses', {}, (ctx) => ctx.db.all('campuses'));
@@ -188,6 +208,7 @@ export function registerPeople(r: Router) {
       .filter((p) => !status || p.status === status)
       .filter((p) => !tag || p.tags.includes(tag))
       .filter((p) => !campusId || p.campusId === campusId)
+      .filter((p) => !ctx.query.zoneId || (ctx.query.zoneId === 'none' ? !p.zoneId : p.zoneId === ctx.query.zoneId))
       .sort((x, y) => x.lastName.localeCompare(y.lastName) || x.firstName.localeCompare(y.firstName));
     const res = page(list, ctx.query.cursor);
     return { ...res, data: res.data.map((p) => personView(ctx, p)) };
@@ -199,11 +220,17 @@ export function registerPeople(r: Router) {
   });
   r.post('/admin/people', { perm: 'people.edit' }, (ctx) => {
     requireFields(ctx.body, ['firstName']);
-    const p = ctx.db.put('people', newPerson(ctx, { lastName: '', ...cleanInput(ctx.body), firstName: String(ctx.body.firstName) }));
+    checkLimit(ctx.db, ctx.now, 'people', activePeople(ctx.db));
+    const p = ctx.db.put('people', newPerson(ctx, { lastName: '', ...cleanInput(ctx.body), ...withCustom(ctx, ctx.body), firstName: String(ctx.body.firstName) }));
     ctx.audit('created', 'person', p.id, `Added ${fullName(p)}`);
+    if (p.status === 'visitor') {
+      triggerWorkflows(ctx, 'new_visitor', p.id);
+      void notify(ctx, 'visitor.new', { personIds: pastorIds(ctx), title: `New visitor: ${p.firstName} ${p.lastName}`.trim(), body: `${ctx.staff?.name ?? 'The office'} added ${p.firstName} as a visitor. Say hello and add them to a follow-up.`, link: `/admin/people/${p.id}`, except: ctx.staff?.personId ?? null });
+    }
     return personView(ctx, p);
   });
   r.post('/admin/people/import', { perm: 'people.edit' }, (ctx) => {
+    if (Array.isArray(ctx.body.rows)) checkLimit(ctx.db, ctx.now, 'people', activePeople(ctx.db), Math.max(0, ctx.body.rows.length - countExisting(ctx, ctx.body.rows)));
     const result = importPeople(ctx, Array.isArray(ctx.body.rows) ? ctx.body.rows : [], ctx.body.dedupeBy === 'email' ? 'email' : 'phone');
     ctx.audit('imported', 'person', null, `Imported people from ${ctx.body.source ?? 'a file'}: ${result.created} added, ${result.updated} updated`);
     return result;
@@ -212,7 +239,8 @@ export function registerPeople(r: Router) {
   r.get('/admin/people/:id/timeline', { perm: 'people.view' }, (ctx) => timeline(ctx, find(ctx, 'people', ctx.params[0], 'Person')));
   r.patch('/admin/people/:id', { perm: 'people.edit' }, (ctx) => {
     const p = find(ctx, 'people', ctx.params[0], 'Person');
-    const next = ctx.db.put('people', { ...p, ...cleanInput(ctx.body) });
+    const next = ctx.db.put('people', { ...p, ...cleanInput(ctx.body), ...withCustom(ctx, ctx.body, p) });
+    if (ctx.body.consent) logConsent(ctx, p.id, p.consent, next.consent, 'staff');
     ctx.audit('updated', 'person', p.id, `Updated ${fullName(next)}`);
     return personView(ctx, next);
   });
@@ -268,6 +296,7 @@ export function registerPeople(r: Router) {
   );
   r.post('/admin/campuses', { perm: 'settings' }, (ctx) => {
     requireFields(ctx.body, ['name']);
+    checkLimit(ctx.db, ctx.now, 'campuses', ctx.db.count('campuses'));
     const c = ctx.db.put('campuses', { id: ctx.id('cp'), name: ctx.body.name, city: ctx.body.city ?? '', address: ctx.body.address ?? '', serviceTimes: ctx.body.serviceTimes ?? '' });
     ctx.audit('created', 'campus', c.id, `Added campus ${c.name}`);
     return c;

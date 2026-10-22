@@ -9,7 +9,7 @@ const APP_ENV = process.env.APP_ENV ?? 'development';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: APP_ENV === 'production' ? 'Flockwise' : `Flockwise (${APP_ENV})`,
+  name: APP_ENV === 'production' ? 'Flockwise Team' : `Flockwise Team (${APP_ENV})`,
   slug: 'flockwise',
   owner: process.env.EXPO_OWNER,
   version: '0.1.0',
@@ -42,6 +42,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   plugins: [
     'expo-router',
     'expo-secure-store',
+    ['expo-notifications', { color: '#1F6B5C' }],
     [
       'expo-font',
       {

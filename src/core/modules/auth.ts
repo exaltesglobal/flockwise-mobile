@@ -1,4 +1,5 @@
-// Passwordless sign-in with a one-time code sent by email (email only, by decision).
+// Passwordless sign-in with a one-time code sent by email (email only, by decision; the team
+// mobile app is the one exception and lives in team-auth.ts).
 // Staff sign in to the church office with the email their admin invited; members sign in
 // with the email on their church record, and newcomers are added as visitors.
 import { ApiError } from '../errors.js';
@@ -6,6 +7,7 @@ import type { Ctx, Router } from '../engine.js';
 import { PERMISSIONS } from '../perms.js';
 import type { Collections, Session } from '../types.js';
 import { church, DAY, memberProfile, newPerson, normEmail, settings } from '../util.js';
+import { notify, pastorIds } from './notify.js';
 
 const OTP_TTL_MIN = 10;
 const MAX_ATTEMPTS = 5;
@@ -14,7 +16,7 @@ const ACCESS_REFRESH_DAYS = 60;
 export const DEMO_CODE = '123456';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function issueSession(ctx: Ctx, person: Collections['people'], staff: Collections['staff'] | null, scope: 'admin' | 'member'): Session {
+export function issueSession(ctx: Ctx, person: Collections['people'], staff: Collections['staff'] | null, scope: 'admin' | 'member'): Session {
   const raw = ctx.env.random(48, 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789');
   const rec: Collections['refreshTokens'] = {
     id: ctx.id('rt'),
@@ -120,6 +122,7 @@ export function registerAuth(r: Router) {
       const local = otp.email.split('@')[0].replace(/[._-]+/g, ' ').trim();
       const firstName = local ? local[0].toUpperCase() + local.slice(1) : 'Friend';
       person = ctx.db.put('people', newPerson(ctx, { firstName, lastName: '', email: otp.email, status: 'visitor', tags: ['Signed up in app'] }));
+      void notify(ctx, 'visitor.new', { personIds: pastorIds(ctx), title: `New visitor: ${firstName}`, body: `${otp.email} just signed up in the app. Say hello and add them to a follow-up.`, link: `/admin/people/${person.id}` });
     }
     return issueSession(ctx, person, null, 'member');
   });
