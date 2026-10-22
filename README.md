@@ -1,56 +1,91 @@
-# Welcome to your Expo app 👋
+# Flockwise mobile (Android + iOS)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+The Flockwise member app, built with [Expo](https://expo.dev) (React Native).
+One codebase produces the Android app, the iOS app, and a web preview.
 
-## Get started
+It talks to the Flockwise backend only through a REST API (see
+[docs/API.md](docs/API.md)). Until that backend is live on Hostinger, the app
+runs on built-in demo data, so it can be designed, tested and shown to churches
+now.
 
-1. Install dependencies
+## What's in it
 
-   ```bash
-   npm install
-   ```
+- Sign in with a one-time code sent by email (newcomers become visitors)
+- Home: greeting, next service, announcements, upcoming events, check-in QR shortcut
+- Events: RSVP, paid tickets (Razorpay checkout), self check-in from 1 hour before start
+- Giving: funds, one-time or monthly, 80G PAN, FCRA citizenship question, pledges with progress, yearly 80G statement as a shareable PDF
+- Groups with "ask to join"
+- Serving: accept or decline rota requests, order of service, dates away (blockouts)
+- Prayer wall: share (whole church or pastors only), "I prayed", mark answered
+- Member directory (opt-in) with call, WhatsApp and email
+- Me: check-in QR code, campus, message and directory consent, language (English, Hindi, Tamil, Telugu, Malayalam, Kannada), server switch for test builds
+- Flockwise branding: colours, Outfit + Source Sans 3 fonts, app icons, splash screen, light and dark mode
 
-2. Start the app
+## Run it
 
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+You need Node.js 20+ and the Expo Go app on your phone.
 
 ```bash
-npm run reset-project
+npm install
+cp .env.example .env
+npx expo start
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+Scan the QR code with Expo Go (Android) or the Camera app (iOS). In demo mode,
+sign in with any email and the code `123456`. Press `w` to open it in a browser.
 
-### Other setup steps
+## Connecting the backend later
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+Demo mode runs the real church engine (`src/core`, copied verbatim from
+`flockwise-api/src/core`) on the phone, so demo and production behave the same.
+When the backend changes, copy its `src/core` folder over this one.
+`metro.config.js` lets Metro resolve the engine's `./x.js` imports.
 
-## Learn more
+The API location is a setting, not code:
 
-To learn more about developing your project with Expo, look at the following resources:
+| Where | How |
+|---|---|
+| Local dev | `.env`: `EXPO_PUBLIC_API_URL=https://staging-api.flockwise.church/v1` and `EXPO_PUBLIC_USE_MOCKS=false` |
+| Cloud builds | `eas.json` → `build.<profile>.env` |
+| A test build already on a phone | Me → Server → paste the URL (not available in store builds) |
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Nothing else changes. All calls go through `src/api/endpoints.ts`; the contract is `docs/API.md` (same file as in `flockwise-api`).
 
-## Join the community
+## Building for the stores
 
-Join our community of developers creating universal apps.
+Builds run in Expo's cloud (EAS), so no Mac is needed for iOS.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+npm install -g eas-cli
+eas login
+eas init                          # links the project, sets the project id
+eas build --profile preview -p android   # installable APK for testers
+eas build --profile production -p all    # store builds
+eas submit -p android / -p ios           # upload to Play Console / App Store Connect
+```
+
+You'll need a Google Play developer account (one-time $25) and an Apple
+Developer account ($99/year). App ids: `church.flockwise.app` on both stores.
+
+## Project layout
+
+```
+app.config.ts        App name, ids, icons, splash, API URL (from env)
+eas.json             Build profiles: development, preview, production
+src/app/             Screens (Expo Router: every file is a route)
+  (auth)/            Welcome, sign-in
+  (tabs)/            Home, Events, Give, Groups, Me
+  member/            Check-in QR, serving, prayer, directory, pledges, statement
+  event/[id].tsx     Event detail + RSVP
+  settings/server    Server switch for test builds
+src/api/             API client, endpoint functions, types, demo backend
+src/core/            Shared church engine (copy of flockwise-api/src/core), used for demo mode
+src/i18n/            Strings in 6 languages, shared with the web member portal
+src/theme/           Brand colours, fonts, spacing
+assets/              Icons, splash, logos and fonts from the brand kit
+```
+
+## Notes
+
+- Indian-language strings are machine-drafted; have native speakers review them. Outfit has no Indic glyphs, so those languages use the phone's system font.
+- Run `npx tsc --noEmit` before committing.
