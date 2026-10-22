@@ -1,6 +1,6 @@
-import { Image } from 'expo-image';
-import { Link } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { Link, router } from 'expo-router';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Home } from '@/api/endpoints';
 import { EventCard } from '@/components/event-card';
@@ -25,7 +25,9 @@ export default function HomeScreen() {
             {t(greetingKey())}, {session?.member.firstName}
           </T>
         </View>
-        <Image source={require('@/assets/brand/mark-color.png')} style={styles.mark} contentFit="contain" />
+        <Pressable accessibilityLabel={t('myQr')} onPress={() => router.push('/member/checkin')} style={styles.qrBtn}>
+          <Ionicons name="qr-code" size={22} color="#FFFFFF" />
+        </Pressable>
       </View>
 
       {loading ? (
@@ -65,6 +67,7 @@ export default function HomeScreen() {
               </Link>
             }
           />
+          {data.upcomingEvents.length === 0 && <T variant="muted">{t('noUpcoming')}</T>}
           {data.upcomingEvents.map((e) => (
             <EventCard key={e.id} event={e} />
           ))}
@@ -76,7 +79,7 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: Space.md, marginTop: Space.sm },
-  mark: { width: 40, height: 40 },
+  qrBtn: { backgroundColor: Brand.pasture, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   service: { backgroundColor: Brand.pasture, borderRadius: Radius.lg, padding: Space.lg, gap: 4 },
   serviceLabel: { fontFamily: Fonts.displayMedium, fontSize: 13, letterSpacing: 0.6, textTransform: 'uppercase', color: Brand.mint },
   serviceTitle: { fontFamily: Fonts.displayBold, fontSize: 24, lineHeight: 30, color: '#FFFFFF' },

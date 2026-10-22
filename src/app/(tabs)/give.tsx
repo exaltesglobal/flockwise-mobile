@@ -5,6 +5,7 @@ import { Alert, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { Giving } from '@/api/endpoints';
 import { ApiError } from '@/api/errors';
 import type { GiveFrequency } from '@/api/types';
+import { ListLink } from '@/components/list-link';
 import { Button, Card, Chip, ErrorState, Loading, Screen, SectionHeader, T } from '@/components/ui';
 import { useT } from '@/i18n';
 import { isUsingMocks } from '@/lib/config';
@@ -135,8 +136,13 @@ export default function GiveScreen() {
             loading={busy}
             disabled={!value || !selectedFund}
           />
+          <T variant="caption">{frequency === 'monthly' ? t('monthlyNote') : t('checkoutNote')}</T>
         </>
       )}
+
+      <SectionHeader title={t('quickLinks')} />
+      <ListLink href="/member/pledges" icon="flag-outline" title={t('pledges')} subtitle={t('makePledge')} />
+      {isIndia && <ListLink href="/member/statement" icon="document-text-outline" title={t('statementTitle')} subtitle={t('printStatement')} />}
 
       <SectionHeader title={t('givingHistory')} />
       {history.data?.data.map((d) => (

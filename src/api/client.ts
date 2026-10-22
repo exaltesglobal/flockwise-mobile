@@ -2,20 +2,20 @@ import { getApiUrl, isUsingMocks } from '@/lib/config';
 
 import { mockRequest } from './mock';
 import { ApiError } from './errors';
-import type { ApiErrorBody } from './types';
+import type { ApiErrorBody, Session } from './types';
 
 export { ApiError };
 
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 type AuthHooks = {
-  getAccessToken: () => string | null;
+  getSession: () => Session | null;
   refresh: () => Promise<boolean>;
   onUnauthorized: () => void;
 };
 
 let auth: AuthHooks = {
-  getAccessToken: () => null,
+  getSession: () => null,
   refresh: async () => false,
   onUnauthorized: () => {},
 };
@@ -28,11 +28,18 @@ export function configureAuth(hooks: AuthHooks) {
 const TIMEOUT_MS = 15_000;
 
 export async function request<T>(method: Method, path: string, body?: unknown, retried = false): Promise<T> {
-  if (isUsingMocks()) return mockRequest<T>(method, path, body);
+  if (isUsingMocks()) {
+    try {
+      return await mockRequest<T>(method, path, body, auth.getSession());
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401 && !path.startsWith('/auth/')) auth.onUnauthorized();
+      throw e;
+    }
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  const token = auth.getAccessToken();
+  const token = auth.getSession()?.accessToken ?? null;
 
   let res: Response;
   try {

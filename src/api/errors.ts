@@ -1,10 +1,2 @@
-export class ApiError extends Error {
-  constructor(
-    public status: number,
-    public code: string,
-    message: string,
-    public fields?: Record<string, string>,
-  ) {
-    super(message);
-  }
-}
+// The engine (src/core) and the HTTP client throw the same error class.
+export { ApiError } from '@/core/errors';

@@ -6,9 +6,11 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
   type PressableProps,
   type StyleProp,
+  type TextInputProps,
   type TextProps,
   type ViewStyle,
 } from 'react-native';
@@ -161,5 +163,35 @@ const styles = StyleSheet.create({
   chip: { borderRadius: Radius.pill, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 8 },
   chipText: { fontFamily: Fonts.displayMedium, fontSize: 14 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: Space.sm },
+  field: { borderWidth: 1, borderRadius: Radius.md, paddingHorizontal: Space.md, minHeight: 50, fontSize: 16, fontFamily: Fonts.body },
+  fieldMulti: { minHeight: 96, paddingTop: 12, textAlignVertical: 'top' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Space.xl, minHeight: 240 },
 });
+
+export function Badge({ label, tone = 'neutral' }: { label: string; tone?: 'neutral' | 'ok' | 'warn' }) {
+  const c = usePalette();
+  const bg = { neutral: c.tint, ok: c.primary, warn: c.accent }[tone];
+  const fg = { neutral: c.text, ok: c.onPrimary, warn: c.onAccent }[tone];
+  return (
+    <View style={{ backgroundColor: bg, borderRadius: Radius.pill, paddingHorizontal: 10, paddingVertical: 3, alignSelf: 'flex-start' }}>
+      <Text style={{ color: fg, fontFamily: Fonts.displayMedium, fontSize: 12 }}>{label}</Text>
+    </View>
+  );
+}
+
+export function Field(props: TextInputProps) {
+  const c = usePalette();
+  return (
+    <TextInput
+      placeholderTextColor={c.textMuted}
+      {...props}
+      style={[styles.field, { borderColor: c.border, color: c.text, backgroundColor: c.card }, props.multiline && styles.fieldMulti, props.style]}
+    />
+  );
+}
+
+export function FormError({ error }: { error: unknown }) {
+  const c = usePalette();
+  if (!error) return null;
+  return <T style={{ color: c.danger }}>{error instanceof Error ? error.message : String(error)}</T>;
+}

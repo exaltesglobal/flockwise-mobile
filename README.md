@@ -10,12 +10,15 @@ now.
 
 ## What's in it
 
-- Sign in with a one-time code sent by email
-- Home: greeting, next service, announcements, upcoming events
-- Events with RSVP
-- Giving: funds, preset or custom amounts, one-time or monthly, 80G PAN, FCRA citizenship question; payment via Razorpay/Stripe hosted checkout
+- Sign in with a one-time code sent by email (newcomers become visitors)
+- Home: greeting, next service, announcements, upcoming events, check-in QR shortcut
+- Events: RSVP, paid tickets (Razorpay checkout), self check-in from 1 hour before start
+- Giving: funds, one-time or monthly, 80G PAN, FCRA citizenship question, pledges with progress, yearly 80G statement as a shareable PDF
 - Groups with "ask to join"
-- Me: profile, language (English, Hindi), server switch for test builds, sign out
+- Serving: accept or decline rota requests, order of service, dates away (blockouts)
+- Prayer wall: share (whole church or pastors only), "I prayed", mark answered
+- Member directory (opt-in) with call, WhatsApp and email
+- Me: check-in QR code, campus, message and directory consent, language (English, Hindi, Tamil, Telugu, Malayalam, Kannada), server switch for test builds
 - Flockwise branding: colours, Outfit + Source Sans 3 fonts, app icons, splash screen, light and dark mode
 
 ## Run it
@@ -33,6 +36,11 @@ sign in with any email and the code `123456`. Press `w` to open it in a browser.
 
 ## Connecting the backend later
 
+Demo mode runs the real church engine (`src/core`, copied verbatim from
+`flockwise-api/src/core`) on the phone, so demo and production behave the same.
+When the backend changes, copy its `src/core` folder over this one.
+`metro.config.js` lets Metro resolve the engine's `./x.js` imports.
+
 The API location is a setting, not code:
 
 | Where | How |
@@ -41,8 +49,7 @@ The API location is a setting, not code:
 | Cloud builds | `eas.json` → `build.<profile>.env` |
 | A test build already on a phone | Me → Server → paste the URL (not available in store builds) |
 
-Nothing else changes. All calls go through `src/api/endpoints.ts`, and the
-demo backend (`src/api/mock.ts`) follows the same contract as `docs/API.md`.
+Nothing else changes. All calls go through `src/api/endpoints.ts`; the contract is `docs/API.md` (same file as in `flockwise-api`).
 
 ## Building for the stores
 
@@ -68,15 +75,17 @@ eas.json             Build profiles: development, preview, production
 src/app/             Screens (Expo Router: every file is a route)
   (auth)/            Welcome, sign-in
   (tabs)/            Home, Events, Give, Groups, Me
+  member/            Check-in QR, serving, prayer, directory, pledges, statement
   event/[id].tsx     Event detail + RSVP
   settings/server    Server switch for test builds
 src/api/             API client, endpoint functions, types, demo backend
-src/i18n/            Strings (en, hi). Add a language by adding a file.
+src/core/            Shared church engine (copy of flockwise-api/src/core), used for demo mode
+src/i18n/            Strings in 6 languages, shared with the web member portal
 src/theme/           Brand colours, fonts, spacing
 assets/              Icons, splash, logos and fonts from the brand kit
 ```
 
 ## Notes
 
-- Hindi strings are machine-drafted; have a native speaker review them. Outfit has no Devanagari glyphs, so Hindi falls back to the system font; add Noto Sans Devanagari (and other Indic Noto fonts) before release.
+- Indian-language strings are machine-drafted; have native speakers review them. Outfit has no Indic glyphs, so those languages use the phone's system font.
 - Run `npx tsc --noEmit` before committing.

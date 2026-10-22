@@ -58,8 +58,14 @@ function RootNavigator({ fontsLoaded }: { fontsLoaded: boolean }) {
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Protected guard={status === 'signedIn'}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="event/[id]" options={{ title: '', headerBackTitle: 'Back' }} />
+          <Stack.Screen name="event/[id]" options={{ title: '', headerBackTitle: ' ' }} />
           <Stack.Screen name="settings/server" options={{ title: 'Server', presentation: 'modal' }} />
+          <Stack.Screen name="member/checkin" />
+          <Stack.Screen name="member/serving" />
+          <Stack.Screen name="member/prayer" />
+          <Stack.Screen name="member/directory" />
+          <Stack.Screen name="member/pledges" />
+          <Stack.Screen name="member/statement" />
         </Stack.Protected>
         <Stack.Protected guard={status === 'signedOut'}>
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />

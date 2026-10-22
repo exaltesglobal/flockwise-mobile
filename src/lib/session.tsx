@@ -42,7 +42,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     configureAuth({
-      getAccessToken: () => sessionRef.current?.accessToken ?? null,
+      getSession: () => sessionRef.current,
       refresh: async () => {
         const current = sessionRef.current;
         if (!current) return false;

@@ -58,7 +58,7 @@ export default function SignIn() {
           <>
             <TextInput
               style={input}
-              placeholder={t('email')}
+              placeholder={t('phoneOrEmail')}
               placeholderTextColor={c.textMuted}
               value={email}
               onChangeText={setEmail}
@@ -86,7 +86,7 @@ export default function SignIn() {
             />
             <Button title={t('verify')} onPress={verify} loading={busy} disabled={code.length !== 6} />
             <Button
-              title={t('changeEmail')}
+              title={t('changeNumber')}
               variant="ghost"
               onPress={() => {
                 setRequestId(null);
