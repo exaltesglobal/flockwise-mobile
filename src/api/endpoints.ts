@@ -25,7 +25,7 @@ export const Auth = {
 export const Me = {
   get: () => api.get<Member>('/me'),
   update: (patch: Partial<Pick<Member, 'firstName' | 'lastName' | 'email' | 'language'>>) => api.patch<Member>('/me', patch),
-  registerDevice: (pushToken: string, platform: 'ios' | 'android') => api.post<void>('/me/devices', { pushToken, platform }),
+  registerDevice: (token: string, platform: 'ios' | 'android') => api.post<void>('/me/devices', { token, platform }),
 };
 
 export const Home = {

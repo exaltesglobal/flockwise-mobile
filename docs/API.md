@@ -44,7 +44,7 @@ Sign-in codes are sent **by email only** (decided 2026-10-22; no SMS or WhatsApp
 |---|---|---|---|
 | GET | `/me` | | `Member` |
 | PATCH | `/me` | any of `firstName, lastName, email, language` | `Member` |
-| POST | `/me/devices` | `{ pushToken, platform: "ios"\|"android" }` | `204` (for push notifications, later) |
+| POST | `/me/devices` | `{ token, platform: "ios"\|"android" }` | `204` (for push notifications, later) |
 
 ## Home
 
