@@ -8,6 +8,7 @@ export default function AuthLayout() {
       <Stack.Screen name="welcome" />
       <Stack.Screen name="sign-in" />
       <Stack.Screen name="forgot" />
+      <Stack.Screen name="church" />
     </Stack>
   );
 }

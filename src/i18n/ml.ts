@@ -309,4 +309,15 @@ export const ml: Strings = {
   happyBirthdayYou: 'നിങ്ങളുടെ സഭാ കുടുംബത്തിൽ നിന്ന് ജന്മദിനാശംസകൾ! 🎂',
   happyAnniversaryYou: 'നിങ്ങളുടെ സഭാ കുടുംബത്തിൽ നിന്ന് വിവാഹ വാർഷികാശംസകൾ! 💐',
   wishesCount: '{count} ആശംസകൾ',
+
+  churchTitle: 'നിങ്ങളുടെ സഭ കണ്ടെത്തുക',
+  churchBody: 'നിങ്ങളുടെ സഭയുടെ Flockwise വിലാസം നൽകുക. സഭാ ഓഫീസിന് ഇത് പറഞ്ഞുതരാനാകും.',
+  churchAddress: 'സഭയുടെ വിലാസം, ഉദാ. grace-hyderabad',
+  churchContinue: 'തുടരുക',
+  churchFindByEmail: 'ഇമെയിൽ വഴി എന്റെ സഭ കണ്ടെത്തുക',
+  churchFindBody: 'നിങ്ങളുടെ സഭയുടെ പക്കലുള്ള ഇമെയിൽ വിലാസം നൽകുക.',
+  churchFindSent: 'Flockwise-ലെ ഏതെങ്കിലും സഭയുടെ പക്കൽ ഈ ഇമെയിൽ ഉണ്ടെങ്കിൽ, അതിന്റെ വിലാസം ഞങ്ങൾ നിങ്ങൾക്ക് ഇമെയിൽ ചെയ്തിട്ടുണ്ട്.',
+  churchChange: 'സഭ മാറ്റുക',
+  churchPick: 'നിങ്ങളുടെ സഭ തിരഞ്ഞെടുക്കുക',
+  churchUseAddress: 'പകരം സഭയുടെ വിലാസം നൽകുക',
 };

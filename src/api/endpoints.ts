@@ -1,7 +1,7 @@
 // One function per backend endpoint (docs/API.md). Screens call these, never fetch() directly.
 // The team app only uses the signed-in person's own endpoints, so nobody sees anyone else's data.
 import { api } from './client';
-import type { Assignment, Blockout, Consent, Member, MemberPreferences, MyServing, TeamRef, TeamSession } from './types';
+import type { Assignment, Blockout, ChurchFound, ChurchPublic, Consent, Member, MemberPreferences, MyServing, TeamRef, TeamSession } from './types';
 
 const q = (params: Record<string, string | undefined>) => {
   const s = new URLSearchParams(Object.entries(params).filter((e): e is [string, string] => !!e[1])).toString();
@@ -26,6 +26,11 @@ export const Me = {
   updatePreferences: (patch: { consent?: Partial<Consent> }) => api.patch<MemberPreferences>('/me/preferences', patch),
   registerDevice: (token: string, platform: 'ios' | 'android') => api.post<void>('/me/devices', { token, platform, app: 'team' }),
   forgetDevice: (token: string) => api.del<void>(`/me/devices?token=${encodeURIComponent(token)}`),
+};
+
+export const Churches = {
+  bySlug: (slug: string) => api.get<ChurchPublic>(`/churches/${encodeURIComponent(slug)}`),
+  find: (email: string) => api.post<{ sent: boolean; churches?: ChurchFound[] }>('/churches/find', { email }),
 };
 
 export const Serving = {

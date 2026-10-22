@@ -1,20 +1,24 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, View } from 'react-native';
+import { useState, useSyncExternalStore } from 'react';
+import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { Auth } from '@/api/endpoints';
 import { PasswordField } from '@/components/password-field';
 import { TeamPicker } from '@/components/team-picker';
 import { Button, Field, FormError, Screen, T } from '@/components/ui';
 import { useT } from '@/i18n';
+import { getChurch, onChurchChange } from '@/lib/church';
 import { isUsingMocks } from '@/lib/config';
 import { useSession } from '@/lib/session';
-import { Space } from '@/theme';
+import { Fonts, Radius, Space, usePalette } from '@/theme';
 
 /** Team sign-in: the person picks their team, then signs in with the password the church admin emailed them. */
 export default function SignIn() {
+  const c = usePalette();
   const { t } = useT();
   const { signIn } = useSession();
+  // Teams belong to a church, so the team list follows the church picked here.
+  const church = useSyncExternalStore(onChurchChange, getChurch);
   const [teamId, setTeamId] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -42,8 +46,28 @@ export default function SignIn() {
           <T variant="muted">{t('teamSignInBody')}</T>
         </View>
 
+        <Pressable
+          onPress={() => {
+            setTeamId('');
+            router.push('/church');
+          }}
+          accessibilityRole="button"
+          style={[styles.church, { borderColor: c.border, backgroundColor: c.card }]}>
+          <View style={{ flex: 1 }}>
+            {church ? (
+              <>
+                <T style={{ fontFamily: Fonts.bodyBold }}>{church.name}</T>
+                {church.city ? <T variant="caption">{church.city}</T> : null}
+              </>
+            ) : (
+              <T variant="muted">{t('churchPick')}</T>
+            )}
+          </View>
+          <T style={{ color: c.primary, fontFamily: Fonts.bodyBold }}>{church ? t('churchChange') : '›'}</T>
+        </Pressable>
+
         <T variant="label">{t('yourTeam')}</T>
-        <TeamPicker value={teamId} onChange={setTeamId} />
+        <TeamPicker key={church?.slug ?? 'default'} value={teamId} onChange={setTeamId} />
 
         <Field
           placeholder={t('emailLabel')}
@@ -71,3 +95,7 @@ export default function SignIn() {
     </KeyboardAvoidingView>
   );
 }
+
+const styles = StyleSheet.create({
+  church: { flexDirection: 'row', alignItems: 'center', gap: Space.md, borderWidth: 1, borderRadius: Radius.md, paddingHorizontal: Space.md, paddingVertical: Space.sm + 4 },
+});

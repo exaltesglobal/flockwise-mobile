@@ -30,3 +30,7 @@ export type TeamSession = Session & {
   /** Set when the church admin made the login: the emailed password must be changed first. */
   mustChangePassword: boolean;
 };
+
+/** A church on the Flockwise server, looked up by its address. */
+export type ChurchPublic = { id: string; slug: string; name: string; city: string | null; logoUrl: string | null; isDefault: boolean };
+export type ChurchFound = { slug: string; name: string; city: string | null };

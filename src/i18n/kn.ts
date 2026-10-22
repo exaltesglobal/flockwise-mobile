@@ -309,4 +309,15 @@ export const kn: Strings = {
   happyBirthdayYou: 'ನಿಮ್ಮ ಸಭೆಯ ಕುಟುಂಬದಿಂದ ಹುಟ್ಟುಹಬ್ಬದ ಶುಭಾಶಯಗಳು! 🎂',
   happyAnniversaryYou: 'ನಿಮ್ಮ ಸಭೆಯ ಕುಟುಂಬದಿಂದ ವಿವಾಹ ವಾರ್ಷಿಕೋತ್ಸವದ ಶುಭಾಶಯಗಳು! 💐',
   wishesCount: '{count} ಶುಭಾಶಯಗಳು',
+
+  churchTitle: 'ನಿಮ್ಮ ಸಭೆಯನ್ನು ಹುಡುಕಿ',
+  churchBody: 'ನಿಮ್ಮ ಸಭೆಯ Flockwise ವಿಳಾಸವನ್ನು ನಮೂದಿಸಿ. ಸಭೆಯ ಕಚೇರಿ ಇದನ್ನು ನಿಮಗೆ ತಿಳಿಸುತ್ತದೆ.',
+  churchAddress: 'ಸಭೆಯ ವಿಳಾಸ, ಉದಾ. grace-hyderabad',
+  churchContinue: 'ಮುಂದುವರಿಸಿ',
+  churchFindByEmail: 'ಇಮೇಲ್ ಮೂಲಕ ನನ್ನ ಸಭೆಯನ್ನು ಹುಡುಕಿ',
+  churchFindBody: 'ನಿಮ್ಮ ಸಭೆಯ ಬಳಿ ಇರುವ ಇಮೇಲ್ ವಿಳಾಸವನ್ನು ನಮೂದಿಸಿ.',
+  churchFindSent: 'Flockwise ನಲ್ಲಿ ಯಾವುದಾದರೂ ಸಭೆಯ ಬಳಿ ಈ ಇಮೇಲ್ ಇದ್ದರೆ, ಅದರ ವಿಳಾಸವನ್ನು ನಿಮಗೆ ಇಮೇಲ್ ಮಾಡಿದ್ದೇವೆ.',
+  churchChange: 'ಸಭೆ ಬದಲಿಸಿ',
+  churchPick: 'ನಿಮ್ಮ ಸಭೆಯನ್ನು ಆರಿಸಿ',
+  churchUseAddress: 'ಬದಲಿಗೆ ಸಭೆಯ ವಿಳಾಸವನ್ನು ನಮೂದಿಸಿ',
 };

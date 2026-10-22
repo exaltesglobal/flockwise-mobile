@@ -309,4 +309,15 @@ export const te: Strings = {
   happyBirthdayYou: 'మీ సంఘ కుటుంబం నుండి పుట్టినరోజు శుభాకాంక్షలు! 🎂',
   happyAnniversaryYou: 'మీ సంఘ కుటుంబం నుండి వివాహ వార్షికోత్సవ శుభాకాంక్షలు! 💐',
   wishesCount: '{count} శుభాకాంక్షలు',
+
+  churchTitle: 'మీ సంఘాన్ని కనుగొనండి',
+  churchBody: 'మీ సంఘం Flockwise చిరునామాను నమోదు చేయండి. మీ సంఘ కార్యాలయం దీన్ని మీకు చెప్పగలదు.',
+  churchAddress: 'సంఘం చిరునామా, ఉదా. grace-hyderabad',
+  churchContinue: 'కొనసాగించండి',
+  churchFindByEmail: 'ఈమెయిల్\u200cతో నా సంఘాన్ని కనుగొనండి',
+  churchFindBody: 'మీ సంఘం వద్ద ఉన్న మీ ఈమెయిల్ చిరునామాను నమోదు చేయండి.',
+  churchFindSent: 'Flockwise\u200cలో ఏ సంఘం వద్దైనా ఈ ఈమెయిల్ ఉంటే, దాని చిరునామాను మీకు ఈమెయిల్ చేశాము.',
+  churchChange: 'సంఘాన్ని మార్చండి',
+  churchPick: 'మీ సంఘాన్ని ఎంచుకోండి',
+  churchUseAddress: 'బదులుగా సంఘం చిరునామాను నమోదు చేయండి',
 };

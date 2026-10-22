@@ -10,7 +10,8 @@ here is part of `flockwise-api`; its full member and office API is in that repo'
 - **Base URL**: `https://api.flockwise.church/v1` (`EXPO_PUBLIC_API_URL`).
 - **Format**: JSON in and out.
 - **Auth**: `Authorization: Bearer <accessToken>` on everything except `/auth/*` and `/team/teams`. Access tokens last 1 hour; refresh tokens rotate on every use.
-- **Tenancy**: the church comes from the token, or from the `X-Church` header before sign-in.
+- **Tenancy**: one server hosts many churches. Before sign-in the app sends `X-Church: <slug>` (the church address, as in `app.flockwise.church/c/<slug>`); after sign-in the church comes from the token. With no header the server's own church is used.
+- **Church lookup** (no sign-in): `GET /churches/:slug` → `{ id, slug, name, city, logoUrl, isDefault }` or `404 church_not_found`; `POST /churches/find { email }` → `{ sent: true }` and the server emails the matching church addresses.
 - **Time**: ISO 8601 UTC. Dates without time (`from`, `to`) are `YYYY-MM-DD`.
 - **Errors**: non-2xx with `{ "error": { "code", "message", "fields"? } }`. `message` is safe to show. On `401`, call `/auth/refresh` once, then sign out if that fails.
 

@@ -309,4 +309,15 @@ export const hi: Strings = {
   happyBirthdayYou: 'आपके चर्च परिवार की ओर से जन्मदिन मुबारक! 🎂',
   happyAnniversaryYou: 'आपके चर्च परिवार की ओर से सालगिरह मुबारक! 💐',
   wishesCount: '{count} शुभकामनाएँ',
+
+  churchTitle: 'अपना चर्च खोजें',
+  churchBody: 'अपने चर्च का Flockwise पता डालें। आपका चर्च कार्यालय आपको यह बता सकता है।',
+  churchAddress: 'चर्च का पता, जैसे grace-hyderabad',
+  churchContinue: 'आगे बढ़ें',
+  churchFindByEmail: 'ईमेल से मेरा चर्च खोजें',
+  churchFindBody: 'वह ईमेल पता डालें जो आपके चर्च के पास है।',
+  churchFindSent: 'अगर Flockwise पर किसी चर्च के पास यह ईमेल है, तो हमने आपको उसका पता ईमेल कर दिया है।',
+  churchChange: 'चर्च बदलें',
+  churchPick: 'अपना चर्च चुनें',
+  churchUseAddress: 'इसके बजाय चर्च का पता डालें',
 };

@@ -1,3 +1,4 @@
+import { getChurch } from '@/lib/church';
 import { getApiUrl, isUsingMocks } from '@/lib/config';
 
 import { mockRequest } from './mock';
@@ -40,6 +41,7 @@ export async function request<T>(method: Method, path: string, body?: unknown, r
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   const token = auth.getSession()?.accessToken ?? null;
+  const church = getChurch()?.slug;
 
   let res: Response;
   try {
@@ -51,6 +53,7 @@ export async function request<T>(method: Method, path: string, body?: unknown, r
         ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         'X-Client': 'flockwise-mobile',
+        ...(church ? { 'X-Church': church } : {}),
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });

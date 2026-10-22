@@ -306,6 +306,17 @@ export const en = {
   happyBirthdayYou: 'Happy birthday from your church family! 🎂',
   happyAnniversaryYou: 'Happy anniversary from your church family! 💐',
   wishesCount: '{count} wishes',
+
+  churchTitle: 'Find your church',
+  churchBody: 'Enter your church’s Flockwise address. Your church office can tell you what it is.',
+  churchAddress: 'Church address, e.g. grace-hyderabad',
+  churchContinue: 'Continue',
+  churchFindByEmail: 'Find my church by email',
+  churchFindBody: 'Enter the email address your church has for you.',
+  churchFindSent: 'If a church on Flockwise has this email, we have emailed you its address.',
+  churchChange: 'Change church',
+  churchPick: 'Choose your church',
+  churchUseAddress: 'Enter the church address instead',
 };
 
 export type Strings = typeof en;

@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { createChurchEngine, Db, type Dump } from '@/core';
 import { createDemoEnv, readDemoToken } from '@/core/demo';
+import { ApiError } from '@/core/errors';
 import { seedDemo } from '@/core/seed';
 
 import type { Session } from './types';
@@ -68,6 +69,7 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export async function mockRequest<T>(method: string, path: string, body: unknown, current: Session | null): Promise<T> {
   await Promise.all([load(), wait(120 + Math.random() * 140)]);
   const [pathname, search = ''] = path.split('?');
+  if (pathname.startsWith('/churches/')) return churchLookup(method, pathname, body) as T;
   const claims = readDemoToken(current?.accessToken);
   const auth = claims && claims.scope === 'member' ? claims : null;
   try {
@@ -80,4 +82,19 @@ export async function mockRequest<T>(method: string, path: string, body: unknown
       await save();
     }
   }
+}
+
+// The church directory lives outside the church engine on the server; the demo has one church.
+const DEMO_SLUGS = ['grace', 'grace-church', 'demo'];
+function churchLookup(method: string, pathname: string, body: unknown) {
+  const s = db.get('settings', 'church');
+  const church = { id: 'ch_demo', slug: 'grace', name: s?.name ?? 'Grace Church', city: s?.city ?? null };
+  if (method === 'POST' && pathname === '/churches/find') {
+    const email = String((body as { email?: string })?.email ?? '').trim();
+    if (!/^\S+@\S+\.\S+$/.test(email)) throw new ApiError(422, 'invalid', 'Enter a valid email address.', { email: 'Enter a valid email address' });
+    return { sent: true, churches: [church] };
+  }
+  const slug = decodeURIComponent(pathname.split('/')[2] ?? '');
+  if (!DEMO_SLUGS.includes(slug)) throw new ApiError(404, 'church_not_found', 'We could not find that church on Flockwise. In the demo, try "grace".');
+  return { ...church, logoUrl: null, isDefault: true };
 }
