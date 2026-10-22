@@ -13,7 +13,7 @@ export default function SignIn() {
   const c = usePalette();
   const { t } = useT();
   const { signIn } = useSession();
-  const [identifier, setIdentifier] = useState('');
+  const [email, setEmail] = useState('');
   const [requestId, setRequestId] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -25,7 +25,7 @@ export default function SignIn() {
     setBusy(true);
     setError(null);
     try {
-      const res = await Auth.requestOtp(identifier.trim());
+      const res = await Auth.requestOtp(email.trim());
       setRequestId(res.requestId);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : String(e));
@@ -51,23 +51,24 @@ export default function SignIn() {
       <Screen edges={['top', 'bottom']}>
         <View style={{ gap: Space.sm, marginTop: Space.xl }}>
           <T variant="title">{t('signInTitle')}</T>
-          <T variant="muted">{requestId ? t('codeSentTo', { target: identifier }) : t('signInBody')}</T>
+          <T variant="muted">{requestId ? t('codeSentTo', { target: email }) : t('signInBody')}</T>
         </View>
 
         {!requestId ? (
           <>
             <TextInput
               style={input}
-              placeholder={t('phoneOrEmail')}
+              placeholder={t('email')}
               placeholderTextColor={c.textMuted}
-              value={identifier}
-              onChangeText={setIdentifier}
+              value={email}
+              onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
-              autoComplete="tel"
-              textContentType="telephoneNumber"
+              autoComplete="email"
+              textContentType="emailAddress"
+              autoCorrect={false}
             />
-            <Button title={t('sendCode')} onPress={sendCode} loading={busy} disabled={identifier.trim().length < 5} />
+            <Button title={t('sendCode')} onPress={sendCode} loading={busy} disabled={!/^\S+@\S+\.\S+$/.test(email.trim())} />
           </>
         ) : (
           <>
@@ -85,7 +86,7 @@ export default function SignIn() {
             />
             <Button title={t('verify')} onPress={verify} loading={busy} disabled={code.length !== 6} />
             <Button
-              title={t('changeNumber')}
+              title={t('changeEmail')}
               variant="ghost"
               onPress={() => {
                 setRequestId(null);

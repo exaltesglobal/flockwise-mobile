@@ -10,7 +10,7 @@ now.
 
 ## What's in it
 
-- Sign in with a one-time code (WhatsApp/SMS/email, chosen by the backend)
+- Sign in with a one-time code sent by email
 - Home: greeting, next service, announcements, upcoming events
 - Events with RSVP
 - Giving: funds, preset or custom amounts, one-time or monthly, 80G PAN, FCRA citizenship question; payment via Razorpay/Stripe hosted checkout
@@ -29,7 +29,7 @@ npx expo start
 ```
 
 Scan the QR code with Expo Go (Android) or the Camera app (iOS). In demo mode,
-sign in with any number and the code `123456`. Press `w` to open it in a browser.
+sign in with any email and the code `123456`. Press `w` to open it in a browser.
 
 ## Connecting the backend later
 

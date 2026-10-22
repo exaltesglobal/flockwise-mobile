@@ -34,7 +34,8 @@ export type Session = {
   church: Church;
 };
 
-export type OtpRequest = { requestId: string; channel: 'sms' | 'whatsapp' | 'email'; expiresInSeconds: number };
+// Sign-in codes are sent by email only.
+export type OtpRequest = { requestId: string; channel: 'email'; expiresInSeconds: number };
 
 export type Announcement = {
   id: string;

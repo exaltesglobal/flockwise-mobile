@@ -16,7 +16,7 @@ import type {
 } from './types';
 
 export const Auth = {
-  requestOtp: (identifier: string) => api.post<OtpRequest>('/auth/otp/request', { identifier }),
+  requestOtp: (email: string) => api.post<OtpRequest>('/auth/otp/request', { email }),
   verifyOtp: (requestId: string, code: string) => api.post<Session>('/auth/otp/verify', { requestId, code }),
   refresh: (refreshToken: string) => api.post<Session>('/auth/refresh', { refreshToken }),
   signOut: (refreshToken: string) => api.post<void>('/auth/sign-out', { refreshToken }),

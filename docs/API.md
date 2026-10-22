@@ -25,18 +25,18 @@ in `src/api/types.ts`.
 - **CORS**: not needed for the native apps. Needed only if the web build of this app is used.
 - **Language**: the app sends the member's language via `PATCH /me`; return `message` strings in that language where you can.
 
-## Auth (passwordless OTP)
+## Auth (passwordless email OTP)
 
 | Method | Path | Body | Returns |
 |---|---|---|---|
-| POST | `/auth/otp/request` | `{ identifier }` (phone in E.164 or email) | `OtpRequest` `{ requestId, channel: "sms"\|"whatsapp"\|"email", expiresInSeconds }` |
+| POST | `/auth/otp/request` | `{ email }` | `OtpRequest` `{ requestId, channel: "email", expiresInSeconds }` |
 | POST | `/auth/otp/verify` | `{ requestId, code }` | `Session` |
 | POST | `/auth/refresh` | `{ refreshToken }` | `Session` (rotate the refresh token) |
 | POST | `/auth/sign-out` | `{ refreshToken }` | `204` |
 
 `Session` = `{ accessToken, refreshToken, expiresAt, member: Member, church: Church }`.
 
-Only people already in the church's member list can sign in. Unknown numbers should get a friendly `404 not_member` error telling them to contact the church office. Rate-limit OTP requests per identifier and per IP.
+Sign-in codes are sent **by email only** (decided 2026-10-22; no SMS or WhatsApp OTP). Only people already in the church's member list can sign in. An unknown email should get a friendly `404 not_member` error telling them to contact the church office. Rate-limit OTP requests per email and per IP, and expire codes after about 10 minutes.
 
 ## Me
 
