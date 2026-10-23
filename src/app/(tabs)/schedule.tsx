@@ -3,12 +3,14 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { Carols } from '@/api/endpoints';
 import { Button, Card, ErrorState, Loading, Screen, SectionHeader, T } from '@/components/ui';
 import { useT } from '@/i18n';
 import { daysUntil } from '@/lib/dates';
 import { formatDay, formatTime, greetingKey } from '@/lib/format';
 import { useMyServing, type ServingItem } from '@/lib/serving';
 import { useSession } from '@/lib/session';
+import { useApi } from '@/lib/use-api';
 import { Brand, Fonts, Radius, Space, usePalette } from '@/theme';
 
 /** Home of the team app: requests waiting for a reply, then everything coming up. */
@@ -58,6 +60,8 @@ export default function ScheduleScreen() {
 
       {next && <NextUp a={next} />}
 
+      <CarolsCard />
+
       {pending.length > 0 && (
         <>
           <SectionHeader title={t('needsReply')} />
@@ -89,6 +93,32 @@ export default function ScheduleScreen() {
 function when(a: ServingItem, t: ReturnType<typeof useT>['t']) {
   const d = daysUntil(a.event.startsAt);
   return d <= 0 ? t('today') : d === 1 ? t('tomorrow') : t('inDays', { n: d });
+}
+
+/** Shows only in carol season, when the office has given this team some nights. */
+function CarolsCard() {
+  const c = usePalette();
+  const { t } = useT();
+  const { session } = useSession();
+  const carols = useApi(() => Carols.mine(session!.team.id), [session!.team.id]);
+  const nights = carols.data?.nights ?? [];
+  if (nights.length === 0) return null;
+  return (
+    <Pressable accessibilityRole="button" onPress={() => router.push('/carols')}>
+      {({ pressed }) => (
+        <Card style={[styles.row, { opacity: pressed ? 0.85 : 1 }]}>
+          <View style={[styles.date, { backgroundColor: Brand.saffron }]}>
+            <Ionicons name="musical-notes" size={24} color={Brand.ink} />
+          </View>
+          <View style={{ flex: 1, gap: 2 }}>
+            <T variant="bodyBold">{carols.data?.season?.name ?? t('carolsCard')}</T>
+            <T variant="caption">{t('carolsCardBody', { n: nights.length })}</T>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={c.textMuted} />
+        </Card>
+      )}
+    </Pressable>
+  );
 }
 
 function NextUp({ a }: { a: ServingItem }) {

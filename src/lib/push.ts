@@ -59,6 +59,7 @@ function screenFor(data: Record<string, unknown> | undefined): string {
   const thread = /^\/app\/team\/(?:([^/?#]+)\/)?threads\/([^/?#]+)/.exec(link);
   if (thread) return `/thread/${thread[2]}${thread[1] ? `?teamId=${encodeURIComponent(thread[1])}` : ''}`;
   if (link.startsWith('/app/tasks')) return '/tasks';
+  if (link.startsWith('/app/carols')) return '/carols';
   // Every other team notice (new rota, event changes, announcements) is about the schedule.
   return '/schedule';
 }

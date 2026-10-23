@@ -16,7 +16,8 @@ export type Plan = {
   tagline: string;
   /** Prices in the smallest unit (paise, cents). Seed is free. */
   price: { INR: { monthly: number; yearly: number }; USD: { monthly: number; yearly: number } };
-  limits: { people: number; staff: number; campuses: number; aiCredits: number };
+  /** teamLogins: volunteers who may sign in to the Team app (the office creates each login). */
+  limits: { people: number; staff: number; teamLogins: number; campuses: number; aiCredits: number };
   highlights: string[];
 };
 
@@ -67,6 +68,7 @@ export const FEATURES: { group: string; items: { label: string; from: PlanId; no
     { label: 'Insights, reports and smart lists', from: 'thrive' },
     { label: 'AI assistant, writer, translator, sermon and setlist help', from: 'thrive' },
     { label: 'Weekly AI pastor briefing', from: 'cathedral' },
+    { label: 'Live sermon captions on the projector, translated', from: 'cathedral' },
     { label: 'API access, MCP and integrations', from: 'cathedral' },
     { label: 'Priority support and data migration from Planning Center, Elvanto or Excel', from: 'cathedral' },
   ] },
@@ -74,6 +76,9 @@ export const FEATURES: { group: string; items: { label: string; from: PlanId; no
 
 /** Add-ons a church can buy on top of its plan. */
 export const AI_PACK = { kind: 'ai_pack', credits: 500, price: { INR: 49_900, USD: 900 } } as const;
+/** WhatsApp by Chitthi on the same invoice: a Chitthi workspace our team sets up and connects. A month at a time; yearly is ten months. Cathedral has it included. */
+export const CHITTHI_ADDON = { kind: 'chitthi', price: { INR: 99_900, USD: 1_200 }, includedFrom: 'cathedral' as PlanId } as const;
+export const chitthiIncluded = (plan: PlanId) => PLAN_ORDER.indexOf(plan) >= PLAN_ORDER.indexOf(CHITTHI_ADDON.includedFrom);
 /** Extra AI credits bought this month. */
 export const aiExtra = (db: Db, month: string) => Number(db.get('meta', `ai-extra:${month}`)?.value ?? 0);
 export const TRIAL_DAYS = 30;
@@ -85,7 +90,7 @@ export const PLANS: Record<PlanId, Plan> = {
     name: 'Seed',
     tagline: 'House churches and church plants',
     price: { INR: { monthly: 0, yearly: 0 }, USD: { monthly: 0, yearly: 0 } },
-    limits: { people: 50, staff: 2, campuses: 1, aiCredits: 20 },
+    limits: { people: 50, staff: 2, teamLogins: 10, campuses: 1, aiCredits: 20 },
     highlights: ['People, households and directory', 'Member app in 6 languages', 'Events, announcements and prayer wall', 'Online giving with no platform fee', 'Email messages and birthday greetings'],
   },
   grow: {
@@ -93,7 +98,7 @@ export const PLANS: Record<PlanId, Plan> = {
     name: 'Grow',
     tagline: 'Growing local churches',
     price: { INR: { monthly: 799_900, yearly: 7_999_000 }, USD: { monthly: 9_900, yearly: 99_000 } },
-    limits: { people: 500, staff: 10, campuses: 1, aiCredits: 200 },
+    limits: { people: 500, staff: 10, teamLogins: 50, campuses: 1, aiCredits: 200 },
     highlights: ['Kids check-in, kiosk and labels', 'Volunteer rotas and groups', 'Forms, registrations and paid tickets', '80G receipts, pledges and statements', 'SMS and WhatsApp at cost, automations', 'Care, prayer and sermons library'],
   },
   thrive: {
@@ -101,7 +106,7 @@ export const PLANS: Record<PlanId, Plan> = {
     name: 'Thrive',
     tagline: 'Mid-sized and multi-service churches',
     price: { INR: { monthly: 1_399_900, yearly: 13_999_000 }, USD: { monthly: 16_900, yearly: 169_000 } },
-    limits: { people: 2_500, staff: 30, campuses: 3, aiCredits: 1_000 },
+    limits: { people: 2_500, staff: 30, teamLogins: 200, campuses: 3, aiCredits: 1_000 },
     highlights: ['Worship planning, chord charts and CCLI', 'Lyrics on the projector, stage display and studio', 'Follow-up workflows and custom fields', 'Calendar with room booking', 'Insights and AI assistant'],
   },
   cathedral: {
@@ -109,7 +114,7 @@ export const PLANS: Record<PlanId, Plan> = {
     name: 'Cathedral',
     tagline: 'Mega churches, dioceses and networks',
     price: { INR: { monthly: 1_699_900, yearly: 16_999_000 }, USD: { monthly: 19_900, yearly: 199_000 } },
-    limits: { people: UNLIMITED, staff: UNLIMITED, campuses: UNLIMITED, aiCredits: 5_000 },
+    limits: { people: UNLIMITED, staff: UNLIMITED, teamLogins: UNLIMITED, campuses: UNLIMITED, aiCredits: 5_000 },
     highlights: ['Unlimited campuses and logins', 'API access, MCP and integrations', 'Weekly AI pastor briefing', 'Priority support and data migration'],
   },
 };
@@ -118,12 +123,32 @@ export const PLANS: Record<PlanId, Plan> = {
 const GATES: [RegExp, PlanId][] = [
   [/^\/admin\/api-keys/, 'cathedral'],
   [/^\/admin\/ai\/briefing/, 'cathedral'],
+  [/^\/admin\/recaps/, 'thrive'],
+  [/^\/admin\/video-greetings/, 'thrive'],
+  [/^\/admin\/annual-return/, 'thrive'],
+  [/^\/admin\/missed-call/, 'grow'],
+  [/^\/admin\/services\/[^/]+\/captions/, 'cathedral'],
   [/^\/admin\/(services|songs|workflows|workflow-cards|people-fields|bookings|resources|calendar|insights|presentation|ai\/(?!status))/, 'thrive'],
   [/^\/admin\/(checkin|volunteers|groups|forms|care|sermons|integrations|registers|zones|visits|accounts|expenses)/, 'grow'],
-  [/^\/admin\/giving\/(pledges|receipts|batches|statements|10bd|form)/, 'grow'],
+  [/^\/admin\/giving\/(pledges|receipts|batches|statements|10bd|form|qr)/, 'grow'],
   [/^\/admin\/offerings/, 'grow'],
+  [/^\/admin\/bank/, 'grow'],
+  [/^\/admin\/safeguarding/, 'grow'],
+  [/^\/admin\/courses/, 'grow'],
+  [/^\/admin\/discipleship/, 'grow'],
+  [/^\/admin\/library/, 'grow'],
+  [/^\/admin\/occasions/, 'grow'],
+  [/^\/admin\/skills/, 'grow'],
+  [/^\/admin\/camps/, 'grow'],
   [/^\/admin\/sunday-school/, 'grow'],
   [/^\/admin\/missions/, 'grow'],
+  [/^\/admin\/rides/, 'grow'],
+  [/^\/admin\/benevolence/, 'thrive'],
+  [/^\/admin\/assets/, 'grow'],
+  [/^\/admin\/feasts/, 'grow'],
+  [/^\/admin\/rentals/, 'thrive'],
+  [/^\/admin\/practices/, 'thrive'],
+  [/^\/admin\/elections/, 'thrive'],
   [/^\/admin\/livestream/, 'grow'],
 ];
 
@@ -139,6 +164,8 @@ export type Subscription = {
   founding?: boolean;
   /** A per-church people limit set by the Flockwise team (custom deals). */
   peopleLimit?: number | null;
+  /** WhatsApp by Chitthi is on this subscription (billed with the plan). */
+  chitthi?: boolean;
   updatedAt: string;
 };
 
@@ -183,7 +210,7 @@ export function limitsFor(db: Db, now: Date) {
   const sub = getSubscription(db);
   const plan = effectivePlan(sub, now);
   const limits = { ...PLANS[plan].limits };
-  if (sub.founding) return { people: UNLIMITED, staff: UNLIMITED, campuses: UNLIMITED, aiCredits: limits.aiCredits };
+  if (sub.founding) return { people: UNLIMITED, staff: UNLIMITED, teamLogins: UNLIMITED, campuses: UNLIMITED, aiCredits: limits.aiCredits };
   if (sub.peopleLimit) limits.people = sub.peopleLimit;
   return limits;
 }
@@ -209,22 +236,23 @@ export function checkPlan(db: Db, now: Date, path: string, method: string, body:
 }
 
 /** Throws when adding `adding` more of something would go past the plan's limit (people get 10% grace). */
-export function checkLimit(db: Db, now: Date, what: 'people' | 'staff' | 'campuses', current: number, adding = 1) {
+export function checkLimit(db: Db, now: Date, what: 'people' | 'staff' | 'teamLogins' | 'campuses', current: number, adding = 1) {
   const limits = limitsFor(db, now);
   const max = what === 'people' ? Math.floor(limits[what] * 1.1) : limits[what];
   if (current + adding <= max) return;
-  const label = { people: 'people', staff: 'office logins', campuses: 'campuses' }[what];
+  const label = { people: 'people', staff: 'office logins', teamLogins: 'Team app logins', campuses: 'campuses' }[what];
   throw new ApiError(402, 'plan_limit', `Your plan includes up to ${limits[what].toLocaleString('en-IN')} ${label}. Upgrade in Settings › Plan and billing to add more.`, { limit: String(limits[what]) });
 }
 
-export function priceFor(plan: PlanId, currency: string, interval: BillingInterval) {
+export function priceFor(plan: PlanId, currency: string, interval: BillingInterval, chitthi = false) {
   const cur = currency === 'INR' ? 'INR' : 'USD';
-  return { currency: cur, amount: PLANS[plan].price[cur][interval] } as const;
+  const addon = chitthi && !chitthiIncluded(plan) ? CHITTHI_ADDON.price[cur] * (interval === 'yearly' ? 10 : 1) : 0;
+  return { currency: cur, amount: PLANS[plan].price[cur][interval] + addon } as const;
 }
 
 /** Monthly recurring revenue of a subscription in its currency's smallest unit. */
 export function monthlyValue(sub: Subscription, currency: string, now: Date) {
   if (sub.founding || sub.status !== 'active' || effectivePlan(sub, now) === 'seed') return 0;
-  const p = priceFor(sub.plan, currency, sub.interval);
+  const p = priceFor(sub.plan, currency, sub.interval, !!sub.chitthi);
   return sub.interval === 'yearly' ? Math.round(p.amount / 12) : p.amount;
 }

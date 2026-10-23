@@ -466,8 +466,58 @@ export function seedDemo(db: Db, env: Env) {
       [14, 'Daniel in the lions\' den', 'Daniel 6:10-23', 'My God sent his angel, and he shut the mouths of the lions. Daniel 6:22'],
     ];
     lessons.forEach(([d, title, scripture, memoryVerse], i) => db.put('ssLessons', { id: `ssl_${i + 1}`, classId: null, date: at(toSunday + d, 9).slice(0, 10), title, scripture, memoryVerse, notes: '' }));
+    // This week's memory verse game: about half of each class has started, a few are word perfect.
+    const taught = at(toSunday - 7, 9).slice(0, 10);
+    const verseText = 'Be kind and compassionate to one another, forgiving each other.';
+    for (const c of cls)
+      for (const pid of c.studentIds) {
+        // Priya's children: Joel has not started (so the demo can play), Anna has only read it.
+        const roll = pid === 'p_joel' ? 1 : pid === 'p_anna' ? 0.5 : rs();
+        if (roll > 0.55) continue;
+        const read = roll < 0.55, blanks = roll < 0.4, recite = roll < 0.22;
+        const when = (h: number) => at(toSunday - 6, h);
+        db.put('verseGames', {
+          id: `${pid}:ssl_1`, personId: pid, classId: c.id, lessonId: 'ssl_1', week: taught, verse: verseText, reference: 'Ephesians 4:32',
+          done: { read: read ? when(17) : null, blanks: blanks ? when(18) : null, recite: recite ? when(19) : null },
+          scores: { read: read ? 10 : 0, blanks: blanks ? 20 : 0, recite: recite ? (rs() < 0.6 ? 30 : 20) : 0 },
+          attempts: (read ? 1 : 0) + (blanks ? 1 : 0) + (recite ? 2 : 0), bestAccuracy: recite ? 90 + Math.floor(rs() * 10) : blanks ? null : null, updatedAt: when(19),
+        });
+      }
     db.put('ssExams', { id: 'sse_1', name: 'Half-yearly exam', date: at(-110, 0).slice(0, 10), maxMarks: 100, classIds: cls.map((c) => c.id), status: 'published', createdAt: at(-120, 10) });
     for (const c of cls) for (const pid of c.studentIds) db.put('ssMarks', { id: `sse_1:${pid}`, examId: 'sse_1', personId: pid, classId: c.id, marks: rs() < 0.08 ? null : Math.round(48 + rs() * 50) });
+
+    // AGM: the committee election is open until Sunday after the meeting; last month's resolution is published.
+    const voters = people.filter((p) => p.status === 'member' && p.id !== DEMO_MEMBER && (yrs(p) ?? 30) >= 18);
+    const stand = voters.filter((p) => p.id !== 'p_arun').slice(3, 9);
+    const roles = ['Standing for secretary', 'Standing for treasurer', 'Youth representative', 'Standing for secretary', 'Women\'s fellowship representative', 'Building committee'];
+    const candidates = stand.map((p, i) => ({ id: `cd_${i + 1}`, personId: p.id, name: `${p.firstName} ${p.lastName}`, note: roles[i] }));
+    db.put('elections', {
+      id: 'el_1', title: 'Church committee 2027–2029', kind: 'election', description: 'Three seats on the church committee for the next two years. Vote for up to three. The count is declared after the AGM.', seats: 3, candidates,
+      eligibility: 'members_18', status: 'open', meetingAt: at(toSunday, 11, 30), venue: 'Main hall, Kondapur', opensAt: at(-3, 10), closesAt: at(toSunday, 13), closedAt: null, paperVotes: {}, paperInvalid: 0,
+      returningOfficer: 'Mercy Daniel', resultsPublished: false, createdAt: at(-10, 10), createdBy: 'Mercy Daniel',
+    });
+    const alpha = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const code = (n: number) => Array.from({ length: n }, () => alpha[Math.floor(rs() * alpha.length)]).join('');
+    voters.forEach((p, i) => {
+      if (rs() > 0.42) return;
+      const picks = [...candidates].sort(() => rs() - 0.5).slice(0, 1 + Math.floor(rs() * 3)).map((c) => c.id);
+      const when = at(-2 + Math.floor(rs() * 3), 8 + Math.floor(rs() * 12));
+      db.put('ballots', { id: `bl_${code(14).toLowerCase()}`, electionId: 'el_1', choices: picks, receipt: code(8), castHour: `${when.slice(0, 13)}:00Z`, via: 'app' });
+      db.put('ballotStubs', { id: `el_1:${p.id}`, electionId: 'el_1', personId: p.id, castAt: when, via: 'app', markedBy: null });
+      void i;
+    });
+    db.put('elections', {
+      id: 'el_2', title: 'Adopt the audited accounts for 2025–26', kind: 'resolution', description: 'That the audited accounts for the year ended 31 March 2026, as circulated, be adopted.', seats: 1,
+      candidates: [{ id: 'for', personId: null, name: 'For', note: '' }, { id: 'against', personId: null, name: 'Against', note: '' }, { id: 'abstain', personId: null, name: 'Abstain', note: '' }],
+      eligibility: 'members_18', status: 'closed', meetingAt: at(-21, 11, 30), venue: 'Main hall, Kondapur', opensAt: at(-24, 10), closesAt: at(-21, 13), closedAt: at(-21, 13), paperVotes: { for: 12, against: 2, abstain: 1 }, paperInvalid: 1,
+      returningOfficer: 'Mercy Daniel', resultsPublished: true, createdAt: at(-30, 10), createdBy: 'Mercy Daniel',
+    });
+    voters.slice(0, 57).forEach((p, i) => {
+      const choice = i < 48 ? 'for' : i < 53 ? 'against' : 'abstain';
+      const when = at(-23 + Math.floor(rs() * 3), 8 + Math.floor(rs() * 12));
+      db.put('ballots', { id: `bl_${code(14).toLowerCase()}`, electionId: 'el_2', choices: [choice], receipt: code(8), castHour: `${when.slice(0, 13)}:00Z`, via: 'app' });
+      db.put('ballotStubs', { id: `el_2:${p.id}`, electionId: 'el_2', personId: p.id, castAt: when, via: 'app', markedBy: null });
+    });
     db.put('ssExams', { id: 'sse_2', name: 'Annual exam', date: at(toSunday + 35, 0).slice(0, 10), maxMarks: 100, classIds: cls.map((c) => c.id), status: 'open', createdAt: at(-3, 10) });
   }
 
@@ -562,11 +612,37 @@ export function seedDemo(db: Db, env: Env) {
   people.filter((p) => p.status === 'visitor').slice(-6).forEach((p, i) => db.put('workflowCards', { id: `wc_v${i}`, workflowId: 'wf_visitor', personId: p.id, stepIndex: i % 3, status: 'active', assignedTo: ['st_4', 'st_2', 'st_1'][i % 3], dueAt: iso(now + (i - 2) * DAY), createdAt: iso(now - (8 + i) * DAY), completedAt: null, history: [{ at: iso(now - (8 + i) * DAY), by: 'Leena George', action: 'added', note: '' }] }));
   responder.slice(8, 11).forEach((p, i) => db.put('workflowCards', { id: `wc_b${i}`, workflowId: 'wf_baptism', personId: p.id, stepIndex: i % 2, status: 'active', assignedTo: 'st_1', dueAt: iso(now + (i * 5 - 1) * DAY), createdAt: iso(now - 9 * DAY), completedAt: null, history: [] }));
 
-  const sermon = (sid: string, title: string, speaker: string, daysAgo: number, series: string, scripture: string, description: string): Collections['sermons'] => ({ id: sid, title, speaker, date: new Date(now - daysAgo * DAY).toISOString().slice(0, 10), series, scripture, description, videoUrl: 'https://www.youtube.com/@gracechurchhyd', audioUrl: '', notesUrl: '', imageUrl: '', published: true, eventId: null, createdAt: iso(now - daysAgo * DAY) });
-  db.put('sermons', sermon('sm_1', 'Hope that does not disappoint', 'Pastor Samuel Raj', 7, 'Romans: The Gospel of Grace', 'Romans 5:1-5', 'Suffering produces perseverance, character and a hope that holds.'));
+  const sermon = (sid: string, title: string, speaker: string, daysAgo: number, series: string, scripture: string, description: string, notes = ''): Collections['sermons'] => ({ id: sid, title, speaker, date: new Date(now - daysAgo * DAY).toISOString().slice(0, 10), series, scripture, description, videoUrl: 'https://www.youtube.com/@gracechurchhyd', audioUrl: '', notesUrl: '', imageUrl: '', notes, published: true, eventId: null, createdAt: iso(now - daysAgo * DAY) });
+  db.put('sermons', sermon('sm_1', 'Hope that does not disappoint', 'Pastor Samuel Raj', 7, 'Romans: The Gospel of Grace', 'Romans 5:1-5', 'Suffering produces perseverance, character and a hope that holds.', '## Peace with God (v1)\nJustified by faith, so we have peace, not a truce. Illustration: the two brothers who stopped speaking for eleven years.\n\n## Rejoicing in suffering (v3-4)\nSuffering → perseverance → character → hope. Not a formula; a road the Spirit walks us down.\n\n## Hope does not disappoint (v5)\nGod’s love poured out, not dripped. Application: whom will you make peace with this week?'));
   db.put('sermons', sermon('sm_2', 'No condemnation', 'Pastor Samuel Raj', 14, 'Romans: The Gospel of Grace', 'Romans 8:1-11', 'Life in the Spirit for those who are in Christ Jesus.'));
   db.put('sermons', sermon('sm_3', 'Faith that works', 'Mercy Daniel', 21, 'James', 'James 2:14-26', 'What does living faith look like on a Monday morning?'));
   db.put('sermons', sermon('sm_4', 'The God who sees', 'Pastor Samuel Raj', 28, 'Stand-alone', 'Genesis 16', 'Hagar meets the God who sees her in the wilderness.'));
+
+  // Last Sunday's "Sunday in 60 seconds", already published, so the member app and the share page have one to show.
+  {
+    const ev7 = events.find((e) => e.id === 'ev_7')!;
+    const plan7 = db.get('plans', 'ev_7')!;
+    const songs7 = plan7.items.filter((i) => i.kind === 'song').map((i) => i.title);
+    const ci7 = db.all('checkins').filter((c) => c.eventId === 'ev_7');
+    const facts: Collections['recaps']['facts'] = {
+      eventId: 'ev_7', eventTitle: ev7.title, date: ev7.startsAt.slice(0, 10), attendance: 846, children: ci7.filter((c) => c.isChild).length, firstTimers: ['Kiran', 'Deepa'],
+      sermon: { title: 'Hope that does not disappoint', speaker: 'Pastor Samuel Raj', scripture: 'Romans 5:1-5', oneLiner: 'Suffering produces perseverance, character and a hope that holds.' },
+      songs: songs7, celebrations: [], prayers: { requests: 6, prayed: 41 }, giving: null, nextEvents: [{ title: 'Youth Night', startsAt: at(2, 18, 30), location: 'Fellowship Hall' }],
+    };
+    db.put('recaps', {
+      id: 'rc_1', eventId: 'ev_7', eventTitle: ev7.title, date: facts.date, language: 'en', headline: 'A Sunday of hope that holds', status: 'published', createdAt: iso(Date.parse(ev7.endsAt) + 3 * 3_600_000), createdBy: 'Leena George', publishedAt: iso(Date.parse(ev7.endsAt) + 4 * 3_600_000), notified: 0,
+      caption: '✨ Sunday in 60 seconds\n846 of us worshipped together.\nPastor Samuel preached "Hope that does not disappoint" from Romans 5.\nA warm welcome to Kiran and Deepa 🙏\nNext: Youth Night, Tuesday.\n— Grace Community Church',
+      stats: { attendance: 846, children: facts.children, firstTimers: 2, prayed: 41, songs: songs7.length },
+      facts,
+      slides: [
+        { title: 'This Sunday', text: `846 of us gathered at Grace Community Church, ${facts.children} of them in kids church.`, stat: '846' },
+        { title: 'The Word', text: 'Suffering produces perseverance, character and a hope that holds. (Pastor Samuel Raj)', stat: 'Romans 5:1-5' },
+        { title: 'We sang', text: songs7.slice(0, 3).join(' · '), stat: `${songs7.length} songs` },
+        { title: 'Our family', text: 'We welcomed Kiran and Deepa for the first time, and prayed 41 times for six requests on the prayer wall.', stat: '2 new' },
+        { title: 'Coming up', text: 'Youth Night on Tuesday at the Fellowship Hall. See you Sunday!', stat: 'Tuesday' },
+      ],
+    });
+  }
 
   // The demo church's brand kit: a simple mark so the logo shows beside the name everywhere.
   const demoLogo = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#7a2e2e"/><path d="M32 10v44M18 24h28" stroke="#fff" stroke-width="7" stroke-linecap="round"/><path d="M12 50c8-10 32-10 40 0" fill="none" stroke="#e9b949" stroke-width="4" stroke-linecap="round"/></svg>');
@@ -579,6 +655,9 @@ export function seedDemo(db: Db, env: Env) {
   }
   db.put('batches', { id: 'bt_2', name: 'Sunday offering (this week)', date: new Date(now).toISOString().slice(0, 10), status: 'open', expectedTotal: null, notes: '', createdBy: 'Vinod Mathew', createdAt: iso(now), committedAt: null, committedBy: null });
 
+  // Two Indian-language songs with simple original words, so the projector can show them in English letters too.
+  db.put('songs', { ...db.get('songs', 'sg_4')!, lyrics: 'Verse 1\nయేసు రాజా నీకే స్తుతి\nనా ప్రాణమా ఆయనను స్తుతించుము\nనీ ప్రేమ నిత్యము నిలుచును\n\nChorus\nస్తుతి స్తుతి స్తుతి యేసయ్యా\nమహిమ మహిమ నీకే యేసయ్యా', copyright: 'Public domain' });
+  db.put('songs', { ...db.get('songs', 'sg_7')!, lyrics: 'Verse 1\nमहिमा हो, महिमा हो\nयीशु के नाम की महिमा हो\nवह राजाओं का राजा है\n\nChorus\nहल्लेलूयाह, हल्लेलूयाह\nयीशु मसीह प्रभु है', copyright: 'Public domain' });
   db.put('songs', { ...db.get('songs', 'sg_1')!, chordChart: '{title: Goodness of God}\n{key: A}\n\n[Verse 1]\n[A]I love You, [D]Lord\nOh Your [A]mercy never [E]fails me\n[A]All my [D]days\nI\'ve been [A]held in Your [E]hands\n\n[Chorus]\n[D]All my life You have been [A]faithful\n[E]All my life You have been so, so [F#m]good\n[D]With every breath that I am [A]able\n[E]Oh I will sing of the goodness of [A]God', attachments: [{ id: 'sa_1', name: 'Lead sheet (PDF)', url: 'https://example.com/goodness-of-god.pdf', kind: 'chart' }, { id: 'sa_2', name: 'Original recording', url: 'https://www.youtube.com/watch?v=n0FBb6hnwTo', kind: 'video' }] });
 
   // Public-domain hymns with full lyrics, so the projector and stage display have real words to show.
