@@ -18,10 +18,13 @@ export type PushMessage = { token: string; title: string; body: string; data?: R
 export type PushResult = { ok: boolean; error?: string; gone?: boolean };
 
 /** A provider-neutral slice of the Claude Messages API, so the engine can run in the browser demo too. */
+export type AiImageType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
 export type AiBlock =
   | { type: 'text'; text: string }
   | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
   | { type: 'tool_result'; tool_use_id: string; content: string; is_error?: boolean }
+  /** A photo for the model to read (base64, no data: prefix). */
+  | { type: 'image'; mediaType: AiImageType; data: string }
   /** A provider block the engine does not read (e.g. thinking) that must go back unchanged in the next turn. */
   | { type: 'opaque'; value: unknown };
 export type AiMessage = { role: 'user' | 'assistant'; content: string | AiBlock[] };
@@ -35,6 +38,9 @@ export type AiRequest = {
   effort?: 'low' | 'medium' | 'high';
 };
 export type AiResponse = { content: AiBlock[]; stopReason: string };
+/** A handler result the server sends as-is instead of JSON (an .ics feed, a CSV). */
+export type RawResult = { __raw: true; contentType: string; body: string; filename?: string };
+export const isRaw = (v: unknown): v is RawResult => !!v && typeof v === 'object' && (v as RawResult).__raw === true;
 
 /** Everything the engine needs from its host. */
 export type Env = {
@@ -57,6 +63,8 @@ export type Env = {
   checkout(donation: DonationRecord, opts: { description: string; fundTaxDeductible: boolean; totalCount?: number; pledgeId?: string }): Promise<{ checkoutUrl: string; providerRef: string | null; provider: DonationRecord['provider']; status?: DonationRecord['status'] }>;
   /** Where the member portal lives, for links in messages. */
   webUrl: string;
+  /** This API's public address with /v1, for links that calendar apps and other services fetch. */
+  apiUrl?: string;
   /** Calls the Chitthi API (WhatsApp) with a church's key. */
   chitthi(apiKey: string, req: { method: 'GET' | 'POST' | 'DELETE'; path: string; body?: unknown }): Promise<{ status: number; data: any }>; // eslint-disable-line @typescript-eslint/no-explicit-any
   /** Claude, when the server has an API key. Absent means AI features are switched off. */
@@ -78,6 +86,11 @@ export type Env = {
     pause(ref: string, fcra: boolean): Promise<void>;
     resume(ref: string, fcra: boolean): Promise<void>;
     cancel(ref: string, fcra: boolean): Promise<void>;
+  };
+  /** Razorpay UPI QR codes on the church's account (offering box, screen). Absent in the demo, where the code is drawn locally. */
+  qrCodes?: {
+    create(input: { name: string; description: string; notes: Record<string, string> }): Promise<{ id: string; imageUrl: string }>;
+    close(id: string): Promise<void>;
   };
   /** Checks a church's Razorpay keys with Razorpay. Absent in the demo. */
   verifyRazorpay?: (keyId: string, keySecret: string) => Promise<boolean>;
@@ -118,8 +131,8 @@ export type Env = {
 /** One licensed lyrics service. `key` is sent as a bearer token. */
 export type LyricsFeed = { id: string; name: string; url: string; key: string; covers: 'all' | 'ccli' };
 
-export type HttpRequest = { method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'; url: string; headers?: Record<string, string>; body?: string | Uint8Array; timeoutMs?: number };
-export type HttpResponse = { status: number; headers: Record<string, string>; text: string };
+export type HttpRequest = { method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'; url: string; headers?: Record<string, string>; body?: string | Uint8Array; timeoutMs?: number; /** Read the answer as bytes (downloads). */ binary?: boolean };
+export type HttpResponse = { status: number; headers: Record<string, string>; text: string; bytes?: Uint8Array };
 export type GoogleKey = { clientEmail: string; privateKey: string; projectId: string };
 
 /** What a signed access token says. The engine re-reads the staff role from the database on each request. */

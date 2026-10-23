@@ -5,7 +5,7 @@ import type { Channel } from './types.js';
 
 export type DemoOutboxItem = { channel: Channel | 'push'; to: string; subject: string; text: string };
 
-export function createDemoEnv(opts: { now?: () => Date; webUrl?: string } = {}): Env & { outbox: DemoOutboxItem[] } {
+export function createDemoEnv(opts: { now?: () => Date; webUrl?: string; apiUrl?: string } = {}): Env & { outbox: DemoOutboxItem[] } {
   let seq = 0;
   const outbox: DemoOutboxItem[] = [];
   const rand = () => {
@@ -32,6 +32,7 @@ export function createDemoEnv(opts: { now?: () => Date; webUrl?: string } = {}):
     channels: () => ({ email: { configured: false, provider: 'demo' }, sms: { configured: false, provider: 'demo' }, whatsapp: { configured: false, provider: 'demo' } }),
     checkout: async () => ({ checkoutUrl: '', providerRef: null, provider: 'demo', status: 'succeeded' }),
     webUrl: opts.webUrl ?? '',
+    apiUrl: opts.apiUrl,
     // A stand-in Chitthi: any well-formed key works except ones containing "bad".
     chitthi: async (apiKey, req) => {
       if (apiKey.includes('bad')) return { status: 401, data: { error: { message: 'Missing or invalid API key.' } } };
@@ -89,6 +90,13 @@ function demoHttp(req: HttpRequest): HttpResponse {
   if (u.startsWith('https://api.canva.com/rest/v1/oauth/token')) return reply(200, { access_token: 'demo-canva-access', refresh_token: 'demo-canva-refresh', expires_in: 14_400 });
   if (u.startsWith('https://api.canva.com/rest/v1/users/me/profile')) return reply(200, { display_name: 'Grace Church Media', team_name: 'Grace Community Church' });
   if (u.startsWith('https://api.canva.com/rest/v1/asset-uploads')) return reply(200, { job: { id: 'job_demo', status: 'success', asset: { id: 'asset_demo', name: 'Flockwise picture' } } });
+  if (u.startsWith('https://api.canva.com/rest/v1/exports')) return reply(200, { job: { id: 'export_demo', status: 'success', urls: ['https://export-download.canva.com/demo/design.png'] } });
+  if (u.startsWith('https://export-download.canva.com/')) return { status: 200, headers: { 'content-type': 'image/png' }, text: '', bytes: new Uint8Array([137, 80, 78, 71]) };
+  if (u.startsWith('https://storage.googleapis.com/upload/')) return reply(200, { name: 'uploaded' });
+  if (u.startsWith('https://api.canva.com/rest/v1/designs/') && req.method === 'GET') {
+    const id = u.split('/designs/')[1].split(/[?/]/)[0];
+    return reply(200, { design: { id, title: 'Harvest festival poster', urls: { edit_url: `https://www.canva.com/design/${id}/edit`, view_url: `https://www.canva.com/design/${id}/view` }, thumbnail: { url: `https://document-export.canva.com/${id}/thumbnail.png` } } });
+  }
   if (u.startsWith('https://api.canva.com/rest/v1/designs')) {
     const b = JSON.parse(typeof req.body === 'string' ? req.body : '{}') as { title?: string };
     const id = `DAF${Math.random().toString(36).slice(2, 10)}`;
@@ -130,6 +138,54 @@ async function demoAi(req: AiRequest): Promise<AiResponse> {
     return text(`Here is what I found in your church data (demo answer):\n\n${names.length ? names.map((n) => `- ${n}`).join('\n') : '- Nothing matched.'}\n\nConnect an AI key on the server for full answers.`);
   }
   const props = (req.schema?.properties ?? {}) as Record<string, unknown>;
+  const photos = typeof last.content === 'string' ? 0 : last.content.filter((b) => b.type === 'image').length;
+  if (photos) {
+    // A scanned songbook page: one Telugu chorus with chords and one English hymn, as a real scan would come back.
+    return text(JSON.stringify({ songs: [
+      { title: 'Yesu Nee Naamam', author: '', key: 'G', language: 'te', lyrics: 'Chorus\nయేసు నీ నామం మధురం\nయేసు నీ ప్రేమ అమరం\n\nVerse 1\nనా పాపములన్నీ క్షమించితివి\nనా బాధలన్నీ తొలగించితివి', chordChart: 'Chorus\n[G]యేసు నీ [C]నామం మధు[G]రం\n[G]యేసు నీ [D]ప్రేమ అమ[G]రం\n\nVerse 1\n[C]నా పాపము[G]లన్నీ క్షమించి[D]తివి\n[C]నా బాధ[G]లన్నీ తొలగించి[D]తివి', warnings: ['The last line of verse 2 is cut off at the fold of the page.'] },
+      { title: 'Rock of Ages', author: 'Augustus Toplady', key: '', language: 'en', lyrics: 'Verse 1\nRock of Ages, cleft for me,\nLet me hide myself in Thee;\nLet the water and the blood,\nFrom Thy wounded side which flowed,\nBe of sin the double cure;\nSave from wrath and make me pure.', chordChart: '', warnings: [] },
+    ].slice(0, photos === 1 ? 2 : 2) }));
+  }
+  if (/clean sermon notes/.test(ask)) {
+    const body = ask.slice(ask.indexOf('Notes:') + 6, ask.lastIndexOf('\n\nWrite ')).trim();
+    const sentences = body.replace(/\b(um+|uh+|you know|like)\b,?\s*/gi, '').split(/(?<=[.!?])\s+/).filter(Boolean);
+    return text(`## Main point\n${sentences.slice(0, 2).join(' ')}\n\n## Going deeper\n${sentences.slice(2).join(' ') || 'The preacher’s remaining notes, tidied (demo).'}\n\n_Tidied in demo mode. Connect an AI key on the server for the real thing._`);
+  }
+  if ('headline' in props && 'slides' in props && 'caption' in props) {
+    // A Sunday recap: the facts are in the message, so the stand-in writes the five slides from them.
+    let f: any = {}; // eslint-disable-line @typescript-eslint/no-explicit-any
+    try { f = JSON.parse(ask.slice(ask.indexOf('Facts (JSON):') + 14, ask.indexOf('\n\nWrite:'))); } catch { /* keep the empty facts */ }
+    const church = /staff of ([^,]+),/.exec(req.system ?? '')?.[1] ?? 'our church';
+    const songs: string[] = Array.isArray(f.songs) ? f.songs.slice(0, 3) : [];
+    const first: string[] = Array.isArray(f.firstTimers) ? f.firstTimers : [];
+    const next = f.nextEvents?.[0];
+    const day = (iso: string) => new Date(iso).toLocaleDateString('en-IN', { weekday: 'long', timeZone: 'Asia/Kolkata' });
+    const family = [first.length ? `We welcomed ${first.slice(0, 3).join(', ')}${first.length > 3 ? ` and ${first.length - 3} more` : ''} for the first time.` : '', f.celebrations?.length ? `${f.celebrations.length} birthdays and anniversaries this week.` : '', f.prayers?.prayed ? `${f.prayers.prayed} prayers prayed for ${f.prayers.requests} requests.` : ''].filter(Boolean).join(' ');
+    return text(JSON.stringify({
+      headline: f.sermon?.title ? `A Sunday of ${/hope/i.test(f.sermon.title) ? 'hope' : 'grace'} at ${church}` : `Sunday at ${church}`,
+      caption: [`✨ Sunday in 60 seconds`, f.attendance ? `${f.attendance} of us worshipped together.` : 'We worshipped together.', f.sermon ? `${f.sermon.speaker || 'Our pastor'} preached "${f.sermon.title}" from ${f.sermon.scripture}.` : '', first.length ? `A warm welcome to ${first.slice(0, 2).join(' and ')} 🙏` : '', next ? `Next: ${next.title}, ${day(next.startsAt)}.` : '', `— ${church}`].filter(Boolean).join('\n'),
+      slides: [
+        { title: 'This Sunday', text: `${f.attendance ? `${f.attendance} of us` : 'We'} gathered at ${church}${f.children ? `, ${f.children} of them children` : ''}.`, stat: f.attendance ? String(f.attendance) : null },
+        { title: 'The Word', text: f.sermon ? `${f.sermon.oneLiner || f.sermon.title} (${f.sermon.speaker})` : 'We opened the Word together.', stat: f.sermon?.scripture || null },
+        { title: 'We sang', text: songs.length ? songs.join(' · ') : 'Songs of praise and thanks.', stat: songs.length ? `${f.songs.length} songs` : null },
+        { title: 'Our family', text: family || 'Grateful for every family who came.', stat: first.length ? `${first.length} new` : f.prayers?.prayed ? `${f.prayers.prayed} prayers` : null },
+        { title: 'Coming up', text: next ? `${next.title} on ${day(next.startsAt)}${next.location ? ` at ${next.location}` : ''}. See you Sunday!` : 'See you Sunday!', stat: next ? day(next.startsAt) : 'Sunday' },
+      ],
+    }));
+  }
+  if ('prayerPoints' in props && 'actions' in props) {
+    // A spoken visit write-up: sentences become the diary line, "pray" lines the prayer points, promises the actions.
+    const body = ask.slice(ask.indexOf('Transcript (speech-to-text, may have errors):') + 46, ask.lastIndexOf('\n\nReturn:')).trim();
+    const sentences = body.replace(/\b(um+|uh+|you know|like|so yeah)\b,?\s*/gi, '').split(/(?<=[.!?])\s+/).map((x) => x.trim()).filter(Boolean);
+    const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1).replace(/[.!?]*$/, '.');
+    const isAction = (x: string) => /\b(will|need to|needs to|should|must|follow up|call|visit again|send|arrange|ask|remind|bring)\b/i.test(x);
+    const isPrayer = (x: string) => /\bpray/i.test(x);
+    const actions = sentences.filter(isAction).slice(0, 5).map((x) => ({ text: cap(x.replace(/^(i|we|i'll|we'll|i will|we will)\s+/i, '').replace(/^(will|need to|needs to|should|must)\s+/i, '')), due: /next week|this week|tomorrow|sunday|monday|friday/i.test(x) ? new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10) : null }));
+    const prayer = sentences.filter(isPrayer).slice(0, 4).map((x) => cap(x.replace(/.*\bpray(ed|ing)?\s+(for|that|about)\s+/i, '')));
+    const purpose = /hospital|surgery|ward|operation/i.test(body) ? 'hospital' : /funeral|passed away|died|bereave/i.test(body) ? 'bereavement' : /new (house|home|flat)|blessing/i.test(body) ? 'house_blessing' : /new family|first visit|just moved/i.test(body) ? 'new_family' : 'home';
+    const concerns = [/job|salary|loan|debt|fees|money/i.test(body) ? 'Money: ' + (sentences.find((x) => /job|salary|loan|debt|fees|money/i.test(x)) ?? '').slice(0, 60) : '', /surgery|hospital|ill|sick|cancer|diabet|bp\b|pain/i.test(body) ? 'Health' : '', /marriage|husband|wife|divorce|fight/i.test(body) ? 'Marriage and family' : ''].filter(Boolean);
+    return text(JSON.stringify({ summary: sentences.filter((x) => !isAction(x)).slice(0, 5).map(cap).join(' '), prayerPoints: prayer, actions, purpose, concerns, confidential: /surgery|cancer|divorce|loan|debt|abuse|hiv|depress/i.test(body) }));
+  }
   if ('songs' in props) {
     const ids = [...ask.matchAll(/^(\S+) \| ([^|]+)\|/gm)].slice(0, Number(/Number of songs: (\d+)/.exec(ask)?.[1] ?? 4));
     return text(JSON.stringify({ songs: ids.map((m, i) => ({ songId: m[1], reason: i === 0 ? 'A strong call to worship.' : 'Fits the theme and flows from the song before.' })), note: 'Starts upbeat and settles into reflective worship (demo suggestion).' }));

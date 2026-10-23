@@ -2,12 +2,12 @@
 // translation into Indian languages, an assistant that answers questions from church data, a
 // weekly briefing, sermon helpers and a worship set suggester. Switched off unless the host has
 // an AI provider; each church has a monthly allowance.
-import type { AiBlock, AiMessage, AiRequest, Ctx, Request, Router } from '../engine.js';
+import type { AiBlock, AiImageType, AiMessage, AiRequest, Ctx, Request, Router } from '../engine.js';
 import type { Db } from '../db.js';
 import { ApiError } from '../errors.js';
 import { limitsFor, aiExtra } from '../plans.js';
 import { TOOLS, trim } from '../mcp.js';
-import type { AiAnswer, AiDraft, AiPurpose, AiSermonKind, AiSetlist, AiStatus } from '../types.js';
+import type { AiAnswer, AiDraft, AiPurpose, AiRecap, AiScannedSong, AiSermonKind, AiSetlist, AiSongScan, AiStatus, AiVisitNotes, RecapFacts, VisitPurpose } from '../types.js';
 import { settings } from '../util.js';
 
 const LANGS: Record<string, string> = { en: 'English', hi: 'Hindi', te: 'Telugu', ta: 'Tamil', ml: 'Malayalam', kn: 'Kannada', mr: 'Marathi', bn: 'Bengali', gu: 'Gujarati', pa: 'Punjabi', or: 'Odia', as: 'Assamese', ur: 'Urdu', kok: 'Konkani', mni: 'Manipuri', lus: 'Mizo', kha: 'Khasi', ne: 'Nepali' };
@@ -43,6 +43,27 @@ async function run(ctx: Ctx, req: AiRequest) {
   });
   if (res.stopReason === 'refusal') throw new ApiError(422, 'ai_declined', 'The assistant could not help with that request.');
   return res;
+}
+
+/**
+ * One line of live captions, translated fast and plainly. Twenty lines count as one request
+ * against the month's limit, since a sermon is a few hundred lines.
+ */
+export async function translateCaption(ctx: Ctx, text: string, from: string, to: string): Promise<string> {
+  if (!ctx.env.ai) throw new ApiError(503, 'ai_off', 'AI features are not switched on for this server yet.');
+  const st = status(ctx);
+  if (st.used >= st.limit) throw new ApiError(429, 'ai_limit', `You have used all ${st.limit} AI requests for this month. They reset on the 1st.`);
+  const key = `ai:captions:${st.month}`;
+  const n = Number(ctx.db.get('meta', key)?.value ?? 0) + 1;
+  ctx.db.put('meta', { id: key, value: String(n) });
+  if (n % 20 === 1) ctx.db.put('meta', { id: `ai:${st.month}`, value: String(st.used + 1) });
+  const res = await ctx.env.ai({
+    system: `Translate live sermon captions from ${LANGS[from] ?? from} into ${LANGS[to] ?? to}, in its own script, the way a church interpreter in India would say it aloud: short, natural, faithful. Keep names and Bible references. The speech recognition may have mistakes; make the best sense of them. Reply with only the translation of this one line.`,
+    messages: [{ role: 'user', content: text }],
+    maxTokens: 400,
+    effort: 'low',
+  }).catch((e: Error) => { throw new ApiError(502, 'ai_failed', e.message || 'The AI service did not answer.'); });
+  return textOf(res.content);
 }
 
 const textOf = (blocks: AiBlock[]) => blocks.filter((b): b is Extract<AiBlock, { type: 'text' }> => b.type === 'text').map((b) => b.text).join('\n').trim();
@@ -107,6 +128,37 @@ export async function askAssistant(ctx: Ctx, question: string, history: AiMessag
   return { answer: 'That needed too many lookups. Try asking a narrower question.', toolsUsed: used };
 }
 
+
+/**
+ * "Sunday in 60 seconds": the week's facts become a headline, a WhatsApp status caption and five
+ * short slides for the reel. One request against the month's allowance; the numbers are never
+ * the model's to invent, they come in as facts and the caller keeps them beside the words.
+ */
+export async function writeRecap(ctx: Ctx, facts: RecapFacts, language: string): Promise<AiRecap> {
+  const lang = LANGS[language] ?? 'English';
+  const schema = {
+    type: 'object',
+    properties: {
+      headline: { type: 'string' },
+      caption: { type: 'string' },
+      slides: { type: 'array', items: { type: 'object', properties: { title: { type: 'string' }, text: { type: 'string' }, stat: { type: ['string', 'null'] } }, required: ['title', 'text', 'stat'], additionalProperties: false } },
+    },
+    required: ['headline', 'caption', 'slides'],
+    additionalProperties: false,
+  };
+  const res = await run(ctx, {
+    system: `${churchContext(ctx)}\n\nYou write the church's Sunday recap for WhatsApp status and the member app: warm, specific, short. Use only the facts given; never invent numbers, names or events, and leave out anything the facts do not have. Write in ${lang}${lang !== 'English' ? ' in its own script' : ''}. Two or three tasteful emoji in the caption are fine; none in slide titles. Reply with JSON only.`,
+    messages: [{ role: 'user', content: `Facts (JSON):\n${JSON.stringify(facts)}\n\nWrite: headline (at most 8 words, the feel of the Sunday), caption (a WhatsApp status caption of 3 to 5 short lines, at most 350 characters, ending with the church name), slides (exactly 5, in order: 1 the Sunday itself with the attendance as stat; 2 the Word, the sermon in one memorable line with the scripture as stat; 3 what we sang, naming up to three songs; 4 our family: first-timers welcomed by first name, celebrations this week, prayers prayed, with one number as stat; 5 coming up this week with the first event and a warm "see you Sunday", the next service day as stat). Each slide: title at most 5 words, text at most 30 words, stat at most 24 characters or null.` }],
+    schema,
+    maxTokens: 2500,
+    effort: 'low',
+  });
+  const out = json<AiRecap>(res.content);
+  const slides = (Array.isArray(out.slides) ? out.slides : []).map((x) => ({ title: str(x?.title, 60), text: str(x?.text, 300), stat: x?.stat ? str(x.stat, 40) : null })).filter((x) => x.title || x.text).slice(0, 6);
+  if (!slides.length) throw new ApiError(502, 'ai_error', 'The recap came back empty. Try again.');
+  return { headline: str(out.headline, 120) || slides[0].title, caption: str(out.caption, 600), slides };
+}
+
 export function registerAi(r: Router) {
   r.get('/admin/ai/status', { staff: true }, (ctx) => status(ctx));
 
@@ -154,7 +206,7 @@ export function registerAi(r: Router) {
     askAssistant(ctx, 'Give me my weekly briefing.', [], 'For the weekly briefing: check the overview, upcoming celebrations, events this week, care cases and volunteer gaps you can see. Write at most 12 short bullets in sections: This week, People to reach, Needs attention. End with one encouraging line.'));
 
   r.post('/admin/ai/sermon', { perm: ['services', 'comms'] }, async (ctx) => {
-    const kind: AiSermonKind = (['outline', 'discussion', 'social', 'kids', 'summary'] as const).includes(ctx.body.kind) ? ctx.body.kind : 'discussion';
+    const kind: AiSermonKind = (['outline', 'discussion', 'social', 'kids', 'summary', 'notes'] as const).includes(ctx.body.kind) ? ctx.body.kind : 'discussion';
     const title = str(ctx.body.title, 200);
     const passage = str(ctx.body.passage, 200);
     const notes = str(ctx.body.notes, 12_000);
@@ -166,14 +218,102 @@ export function registerAi(r: Router) {
       social: 'three short social media posts and one WhatsApp status line inviting people to listen, each with a key quote.',
       kids: 'a children’s ministry version for ages 6 to 11: the main idea in one sentence, a simple story retelling, two activities and a memory verse.',
       summary: 'a 150-word summary for the church newsletter and website.',
+      notes: 'the notes above as clean sermon notes for the church app: keep the preacher’s own words and order, fix what speech-to-text got wrong, drop fillers and repeats, write scripture references in full (book chapter:verse), and put a short heading before each main point. Do not add points the preacher did not make.',
     };
+    if (kind === 'notes' && !notes) throw new ApiError(400, 'bad_request', 'Dictate or type some notes first.');
     const res = await run(ctx, {
       system: `${churchContext(ctx)}\n\nYou support pastors with sermon follow-up material, staying faithful to the passage and to mainstream Christian teaching. Never invent quotes from the sermon; use only what the notes say. Write in ${lang}. Use Markdown headings and lists.`,
       messages: [{ role: 'user', content: `Sermon title: ${title || '(none)'}\nPassage: ${passage || '(none)'}\nNotes:\n${notes || '(none)'}\n\nWrite ${asks[kind]}` }],
-      maxTokens: 4000,
+      maxTokens: kind === 'notes' ? 6000 : 4000,
       effort: kind === 'outline' ? 'medium' : 'low',
     });
     return { text: textOf(res.content) };
+  });
+
+  // The pastor talks through a visit on the way home; the diary entry, prayer points and action
+  // items come back structured so the visit form fills itself. The spoken words are kept too.
+  r.post('/admin/ai/visit-notes', { perm: 'care' }, async (ctx): Promise<AiVisitNotes> => {
+    const transcript = str(ctx.body.transcript, 12_000);
+    if (transcript.split(/\s+/).length < 4) throw new ApiError(400, 'bad_request', 'Dictate or type what happened on the visit first.');
+    const family = str(ctx.body.familyName, 120);
+    const lang = LANGS[String(ctx.body.language ?? 'en')] ?? 'English';
+    const schema = {
+      type: 'object',
+      properties: {
+        summary: { type: 'string' },
+        prayerPoints: { type: 'array', items: { type: 'string' } },
+        actions: { type: 'array', items: { type: 'object', properties: { text: { type: 'string' }, due: { type: ['string', 'null'] } }, required: ['text', 'due'], additionalProperties: false } },
+        purpose: { type: 'string', enum: ['home', 'new_family', 'hospital', 'house_blessing', 'bereavement', 'other'] },
+        concerns: { type: 'array', items: { type: 'string' } },
+        confidential: { type: 'boolean' },
+      },
+      required: ['summary', 'prayerPoints', 'actions', 'purpose', 'concerns', 'confidential'],
+      additionalProperties: false,
+    };
+    const res = await run(ctx, {
+      system: `${churchContext(ctx)}\n\nYou write up a pastor's spoken notes after a pastoral visit as a diary entry. Keep to what was said; never add facts. Write in ${lang}. Reply with JSON only.`,
+      messages: [{ role: 'user', content: `Family visited: ${family || '(not given)'}\nDate: ${str(ctx.body.date, 10) || ctx.now.toISOString().slice(0, 10)}\nTranscript (speech-to-text, may have errors):\n${transcript}\n\nReturn: summary (a clear diary paragraph of 60–120 words in the pastor's voice, fixing speech-to-text slips, no fillers), prayerPoints (short, one per need), actions (things the pastor or office said they would do, each as an imperative sentence; due as YYYY-MM-DD only when a date or clear timeframe was spoken, else null), purpose (one of home, new_family, hospital, house_blessing, bereavement, other), concerns (health, money, family, faith or safety worries worth the care team's eye, a few words each), confidential (true when the notes touch illness, marriage, money trouble, abuse or anything the family would not want widely known).` }],
+      schema,
+      maxTokens: 2500,
+      effort: 'low',
+    });
+    const out = json<AiVisitNotes>(res.content);
+    const purposes: VisitPurpose[] = ['home', 'new_family', 'hospital', 'house_blessing', 'bereavement', 'other'];
+    return {
+      summary: str(out.summary, 3000),
+      prayerPoints: (Array.isArray(out.prayerPoints) ? out.prayerPoints : []).map((x) => str(x, 200)).filter(Boolean).slice(0, 8),
+      actions: (Array.isArray(out.actions) ? out.actions : []).map((a) => ({ text: str(a?.text, 200), due: /^\d{4}-\d{2}-\d{2}$/.test(String(a?.due)) ? String(a.due) : null })).filter((a) => a.text).slice(0, 10),
+      purpose: purposes.includes(out.purpose) ? out.purpose : 'home',
+      concerns: (Array.isArray(out.concerns) ? out.concerns : []).map((x) => str(x, 120)).filter(Boolean).slice(0, 6),
+      confidential: !!out.confidential,
+    };
+  });
+
+  // Photos of a songbook page, a handwritten chord sheet or a projected slide become songs for the
+  // library. One request per call (up to four pages), checked by the office before anything is saved.
+  r.post('/admin/ai/song-scan', { perm: 'services' }, async (ctx): Promise<AiSongScan> => {
+    const raw = Array.isArray(ctx.body.images) ? (ctx.body.images as unknown[]) : [];
+    if (!raw.length) throw new ApiError(400, 'bad_request', 'Take a photo of the page first.');
+    if (raw.length > 4) throw new ApiError(422, 'invalid', 'Up to four pages at a time.');
+    const images = raw.map((x) => {
+      const o = (x ?? {}) as { mediaType?: unknown; data?: unknown };
+      const mediaType = String(o.mediaType ?? 'image/jpeg') as AiImageType;
+      if (!(['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as string[]).includes(mediaType)) throw new ApiError(422, 'invalid', 'Use a JPEG, PNG or WebP photo.');
+      const data = String(o.data ?? '').replace(/^data:[^,]+,/, '');
+      if (data.length < 100) throw new ApiError(422, 'invalid', 'That photo is empty.');
+      if (data.length > 5_600_000) throw new ApiError(422, 'invalid', 'That photo is too big. Photos are shrunk in the app before sending; try again.');
+      return { type: 'image' as const, mediaType, data };
+    });
+    const hint = str(ctx.body.hint, 300);
+    const res = await run(ctx, {
+      system: `${churchContext(ctx)}\n\nYou read photos of church songbook pages, handwritten chord sheets and projected lyric slides, and type out every song on them exactly as printed. Keep the original script (Telugu, Hindi, Tamil and so on stay in their own script); never translate or transliterate. Keep verse and chorus order with a heading line before each section (Verse 1, Chorus, Bridge). When chords are printed above or beside the words, write them inline in square brackets right before the syllable they fall on, ChordPro style, in chordChart, and put the plain words in lyrics; when there are no chords, leave chordChart empty. Guess the key from the chords (or leave it empty). Note in warnings anything you could not read. If a page has no song on it, return no songs.`,
+      messages: [{ role: 'user', content: [...images, { type: 'text', text: `Type out every song on ${images.length === 1 ? 'this page' : `these ${images.length} pages`}.${hint ? ` Hint from the office: ${hint}` : ''}` }] }],
+      schema: {
+        type: 'object',
+        properties: {
+          songs: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: { title: { type: 'string' }, author: { type: 'string' }, key: { type: 'string' }, language: { type: 'string', description: 'ISO code such as en, te, hi, ta' }, lyrics: { type: 'string' }, chordChart: { type: 'string' }, warnings: { type: 'array', items: { type: 'string' } } },
+              required: ['title', 'author', 'key', 'language', 'lyrics', 'chordChart', 'warnings'],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: ['songs'],
+        additionalProperties: false,
+      },
+      maxTokens: 8000,
+      effort: 'medium',
+    });
+    const out = json<{ songs: Partial<AiScannedSong>[] }>(res.content);
+    const songs: AiScannedSong[] = (Array.isArray(out.songs) ? out.songs : []).map((s) => ({
+      title: str(s.title, 200) || 'Untitled song', author: str(s.author, 200), key: str(s.key, 10), language: str(s.language, 8) || 'en',
+      lyrics: str(s.lyrics, 20_000), chordChart: str(s.chordChart, 20_000), warnings: Array.isArray(s.warnings) ? s.warnings.map((w) => str(w, 300)).filter(Boolean).slice(0, 5) : [],
+    })).filter((s) => s.lyrics || s.chordChart);
+    ctx.audit('scanned', 'song', '-', `Read ${songs.length} song${songs.length === 1 ? '' : 's'} from ${images.length} photo${images.length === 1 ? '' : 's'}`);
+    return { songs, pages: images.length };
   });
 
   r.post('/admin/ai/setlist', { perm: 'services' }, async (ctx): Promise<AiSetlist> => {
